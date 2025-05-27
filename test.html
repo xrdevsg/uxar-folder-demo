@@ -1,93 +1,34 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebXR Test</title>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            background: white;
-            color: black;
-        }
-        
-        #status {
-            padding: 20px;
-            border: 2px solid #333;
-            margin: 20px 0;
-            border-radius: 10px;
-        }
-        
-        button {
-            padding: 15px 30px;
-            font-size: 18px;
-            background: #ff6b35;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
+        body { font-family: Arial; padding: 20px; background: white; }
+        .status { padding: 20px; border: 2px solid black; margin: 20px 0; }
     </style>
 </head>
 <body>
-    <h1>WebXR Compatibility Test</h1>
+    <h1>WebXR Support Test</h1>
+    <div class="status" id="result">Testing...</div>
     
-    <div id="status">
-        <p>Checking WebXR support...</p>
-    </div>
-    
-    <button id="testAR" style="display:none;">Test AR</button>
-    
-    <div id="info">
-        <h3>Debug Info:</h3>
-        <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
-        <p><strong>WebXR Available:</strong> <span id="webxrAvailable"></span></p>
-        <p><strong>AR Supported:</strong> <span id="arSupported"></span></p>
-    </div>
-
     <script>
-        // Display user agent
-        document.getElementById('userAgent').textContent = navigator.userAgent;
+        const result = document.getElementById('result');
         
-        // Check WebXR support
         if ('xr' in navigator) {
-            document.getElementById('webxrAvailable').textContent = 'YES';
-            document.getElementById('status').innerHTML = '<p style="color: green;">✅ WebXR is available!</p>';
+            result.innerHTML = '<p style="color: green;">✅ WebXR is available!</p><p>Browser: ' + navigator.userAgent + '</p>';
             
-            // Check AR support
-            navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-                document.getElementById('arSupported').textContent = supported ? 'YES' : 'NO';
-                
+            navigator.xr.isSessionSupported('immersive-ar').then(supported => {
                 if (supported) {
-                    document.getElementById('status').innerHTML = '<p style="color: green;">✅ AR is supported! You can try the full demo.</p>';
-                    document.getElementById('testAR').style.display = 'block';
+                    result.innerHTML += '<p style="color: green;">✅ AR is supported! Your main demo should work.</p>';
                 } else {
-                    document.getElementById('status').innerHTML = '<p style="color: orange;">⚠️ WebXR available but AR not supported on this device.</p>';
+                    result.innerHTML += '<p style="color: orange;">⚠️ AR not supported on this device.</p>';
                 }
-            }).catch((error) => {
-                document.getElementById('arSupported').textContent = 'ERROR: ' + error.message;
-                document.getElementById('status').innerHTML = '<p style="color: red;">❌ Error checking AR support: ' + error.message + '</p>';
+            }).catch(err => {
+                result.innerHTML += '<p style="color: red;">❌ AR check failed: ' + err.message + '</p>';
             });
-            
         } else {
-            document.getElementById('webxrAvailable').textContent = 'NO';
-            document.getElementById('arSupported').textContent = 'NO';
-            document.getElementById('status').innerHTML = '<p style="color: red;">❌ WebXR not supported in this browser.</p>';
+            result.innerHTML = '<p style="color: red;">❌ WebXR not supported in this browser.</p>';
         }
-        
-        // Test AR button
-        document.getElementById('testAR').addEventListener('click', () => {
-            navigator.xr.requestSession('immersive-ar').then((session) => {
-                document.getElementById('status').innerHTML = '<p style="color: green;">🎉 AR session started successfully!</p>';
-                setTimeout(() => {
-                    session.end();
-                }, 3000);
-            }).catch((error) => {
-                document.getElementById('status').innerHTML = '<p style="color: red;">❌ AR session failed: ' + error.message + '</p>';
-            });
-        });
     </script>
 </body>
 </html>
