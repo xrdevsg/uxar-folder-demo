@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Folder Portal - Drag to Real World</title>
+    <title>AR Folder Portal - Complete Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -43,17 +43,18 @@
         
         /* 2D Folder UI Panel */
         #folderUI {
-            position: absolute;
-            top: 100px;
-            right: 30px;
-            width: 200px;
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            width: 180px;
             background: rgba(255,255,255,0.95);
             border-radius: 15px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             backdrop-filter: blur(10px);
-            z-index: 200;
+            z-index: 999;
             display: none;
+            border: 2px solid #4a90e2;
         }
         
         .folder-header {
@@ -83,7 +84,7 @@
             color: white;
             font-size: 10px;
             font-weight: bold;
-            cursor: grab;
+            cursor: pointer;
             transition: all 0.3s ease;
             user-select: none;
             position: relative;
@@ -95,21 +96,12 @@
         }
         
         .folder-item:active {
-            cursor: grabbing;
             transform: scale(0.95);
         }
         
         .folder-item .icon {
             font-size: 24px;
             margin-bottom: 5px;
-        }
-        
-        .drag-preview {
-            position: absolute;
-            pointer-events: none;
-            z-index: 1000;
-            transform: scale(1.2);
-            opacity: 0.8;
         }
         
         #instructions {
@@ -125,13 +117,24 @@
             z-index: 150;
             display: none;
         }
+        
+        .debug-button {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="info">
         <h3>🗂️ AR Folder Portal</h3>
-        <p><strong>Concept:</strong> Drag items from 2D folder UI into 3D AR space!</p>
+        <p><strong>Concept:</strong> Tap folder items → 3D objects appear in AR!</p>
         <p><strong>Demo by:</strong> xrdevsg</p>
+        <button onclick="testPanel()" class="debug-button">Test Panel</button>
     </div>
     
     <button id="startAR">Enter AR Mode</button>
@@ -142,19 +145,19 @@
             📁 FOLDER
         </div>
         <div class="folder-grid">
-            <div class="folder-item" data-type="laptop" draggable="true">
+            <div class="folder-item" data-type="laptop">
                 <div class="icon">💻</div>
                 <div>LAPTOP</div>
             </div>
-            <div class="folder-item" data-type="phone" draggable="true">
+            <div class="folder-item" data-type="phone">
                 <div class="icon">📱</div>
                 <div>PHONE</div>
             </div>
-            <div class="folder-item" data-type="headphones" draggable="true">
+            <div class="folder-item" data-type="headphones">
                 <div class="icon">🎧</div>
                 <div>AUDIO</div>
             </div>
-            <div class="folder-item" data-type="camera" draggable="true">
+            <div class="folder-item" data-type="camera">
                 <div class="icon">📷</div>
                 <div>CAMERA</div>
             </div>
@@ -174,7 +177,6 @@
     
     <script>
         let scene, camera, renderer, session, referenceSpace;
-        let folderUI, isDragging = false, dragItem = null;
         let placedObjects = [];
         let arActive = false;
         
@@ -203,22 +205,18 @@
             
             switch(type) {
                 case 'laptop':
-                    // Laptop shape - flat rectangle
                     geometry = new THREE.BoxGeometry(0.3, 0.02, 0.2);
                     color = 0x333333;
                     break;
                 case 'phone':
-                    // Phone shape - tall rectangle
                     geometry = new THREE.BoxGeometry(0.08, 0.15, 0.01);
                     color = 0x000000;
                     break;
                 case 'headphones':
-                    // Headphones - torus shape
                     geometry = new THREE.TorusGeometry(0.08, 0.02, 8, 16);
                     color = 0x4a90e2;
                     break;
                 case 'camera':
-                    // Camera - box with cylinder
                     geometry = new THREE.BoxGeometry(0.12, 0.08, 0.06);
                     color = 0x666666;
                     break;
@@ -230,11 +228,10 @@
             material = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geometry, material);
             
-            // Position the object
             mesh.position.copy(position);
-            mesh.position.y += 0.1; // Slightly above surface
+            mesh.position.y += 0.1;
             
-            // Add subtle animation
+            // Animation
             const startTime = Date.now();
             function animate() {
                 const elapsed = (Date.now() - startTime) * 0.001;
@@ -250,43 +247,39 @@
             scene.add(mesh);
             placedObjects.push(mesh);
             
-            updateUI();
+            updateUI(type);
         }
         
-        function updateUI() {
-            if (arActive) {
-                document.getElementById('info').innerHTML = `
+        function updateUI(lastPlaced = '') {
+            const info = document.getElementById('info');
+            if (lastPlaced) {
+                info.innerHTML = `
                     <h3>🗂️ AR Folder Active</h3>
-                    <p><strong>Drag items</strong> from folder panel</p>
-                    <p><strong>Objects placed:</strong> ${placedObjects.length}</p>
+                    <p><strong>✅ ${lastPlaced.toUpperCase()} placed!</strong></p>
+                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
+                    <p><em>Tap more folder items!</em></p>
+                    <button onclick="testPanel()" class="debug-button">Test Panel</button>
+                `;
+            } else {
+                info.innerHTML = `
+                    <h3>🗂️ AR Folder Active</h3>
+                    <p><strong>Tap items</strong> from folder panel</p>
+                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
                     <p><em>Folders → AR Space</em></p>
+                    <button onclick="testPanel()" class="debug-button">Test Panel</button>
                 `;
             }
         }
         
-        function setupDragAndDrop() {
+        function setupFolderInteraction() {
             const folderItems = document.querySelectorAll('.folder-item');
             
             folderItems.forEach(item => {
-                // Desktop drag and drop
-                item.addEventListener('dragstart', (e) => {
-                    isDragging = true;
-                    dragItem = e.target.dataset.type;
-                    e.dataTransfer.effectAllowed = 'copy';
-                    e.target.style.opacity = '0.5';
-                });
-                
-                item.addEventListener('dragend', (e) => {
-                    e.target.style.opacity = '1';
-                    isDragging = false;
-                });
-                
-                // Mobile touch - simplified tap to place
                 item.addEventListener('click', (e) => {
                     e.preventDefault();
-                    if (!arActive) return;
                     
                     const itemType = e.currentTarget.dataset.type;
+                    console.log('Tapped:', itemType);
                     
                     // Visual feedback
                     e.currentTarget.style.transform = 'scale(0.9)';
@@ -302,35 +295,7 @@
                     );
                     
                     create3DObject(itemType, position);
-                    
-                    // Show feedback
-                    const info = document.getElementById('info');
-                    info.innerHTML = `
-                        <h3>🗂️ AR Folder Active</h3>
-                        <p><strong>✅ ${itemType.toUpperCase()} placed!</strong></p>
-                        <p><strong>Objects:</strong> ${placedObjects.length}</p>
-                        <p><em>Tap folder items to place objects</em></p>
-                    `;
                 });
-            });
-            
-            // Desktop drop zone
-            document.addEventListener('dragover', (e) => {
-                e.preventDefault();
-            });
-            
-            document.addEventListener('drop', (e) => {
-                e.preventDefault();
-                if (dragItem && arActive) {
-                    const position = new THREE.Vector3(
-                        (Math.random() - 0.5) * 2,
-                        0.3 + Math.random() * 0.4,
-                        -1 - Math.random() * 1.5
-                    );
-                    create3DObject(dragItem, position);
-                }
-                isDragging = false;
-                dragItem = null;
             });
         }
         
@@ -350,11 +315,9 @@
                 });
                 
                 referenceSpace = await session.requestReferenceSpace('local-floor');
-                
-                // Set up XR session
                 renderer.xr.setSession(session);
                 
-                // Show the folder UI
+                // Show UI
                 document.getElementById('folderUI').style.display = 'block';
                 document.getElementById('instructions').style.display = 'block';
                 document.getElementById('startAR').style.display = 'none';
@@ -385,10 +348,18 @@
             }
         }
         
+        // Debug function
+        function testPanel() {
+            console.log('Testing panel...');
+            document.getElementById('folderUI').style.display = 'block';
+            document.getElementById('instructions').style.display = 'block';
+            arActive = true;
+            updateUI();
+        }
+        
         // Initialize
         init();
-        setupDragAndDrop();
-        
+        setupFolderInteraction();
         document.getElementById('startAR').addEventListener('click', startAR);
         
         // Handle window resize
