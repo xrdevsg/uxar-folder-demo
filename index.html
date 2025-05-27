@@ -162,10 +162,9 @@
                 folderPanel.add(itemMesh);
             });
             
-            // Position folder panel in space (like Adam's demo)
-            folderPanel.position.copy(anchorPoint);
-            folderPanel.position.y += 0.3; // Slightly above anchor
-            folderPanel.rotation.x = -Math.PI / 6; // Slight angle for visibility
+            // Position folder panel in space (closer and more accessible)
+            folderPanel.position.set(0, 1.2, -0.8); // Closer to user, at comfortable reach
+            folderPanel.rotation.x = -Math.PI / 8; // Slight downward angle for easy reach
             
             scene.add(folderPanel);
         }
@@ -181,31 +180,92 @@
             
             handModels = [hand1, hand2];
             
+            // Create visible hand representations
+            handModels.forEach((hand, index) => {
+                // Create hand skeleton visualization
+                const handGroup = new THREE.Group();
+                
+                // Palm
+                const palmGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+                const palmMaterial = new THREE.MeshBasicMaterial({ 
+                    color: index === 0 ? 0x44ff44 : 0x4444ff,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const palmMesh = new THREE.Mesh(palmGeometry, palmMaterial);
+                handGroup.add(palmMesh);
+                
+                // Finger tips
+                for (let i = 0; i < 5; i++) {
+                    const fingerGeometry = new THREE.SphereGeometry(0.008, 6, 6);
+                    const fingerMaterial = new THREE.MeshBasicMaterial({ 
+                        color: index === 0 ? 0x88ff88 : 0x8888ff 
+                    });
+                    const fingerMesh = new THREE.Mesh(fingerGeometry, fingerMaterial);
+                    fingerMesh.position.set(
+                        (i - 2) * 0.02,
+                        0.05,
+                        0.02
+                    );
+                    handGroup.add(fingerMesh);
+                }
+                
+                // Pinch indicator (grows when pinching)
+                const pinchGeometry = new THREE.RingGeometry(0.01, 0.03, 8);
+                const pinchMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xff4444,
+                    transparent: true,
+                    opacity: 0
+                });
+                const pinchIndicator = new THREE.Mesh(pinchGeometry, pinchMaterial);
+                pinchIndicator.position.set(0, 0.03, 0.02);
+                handGroup.add(pinchIndicator);
+                
+                hand.add(handGroup);
+                hand.userData.pinchIndicator = pinchIndicator;
+                hand.userData.isPinching = false;
+            });
+            
             // Hand tracking event listeners
             hand1.addEventListener('pinchstart', onPinchStart);
             hand1.addEventListener('pinchend', onPinchEnd);
             hand2.addEventListener('pinchstart', onPinchStart);
             hand2.addEventListener('pinchend', onPinchEnd);
             
-            // Create hand visualization
-            handModels.forEach((hand, index) => {
-                // Add finger tip indicator
-                const tipGeometry = new THREE.SphereGeometry(0.005, 8, 8);
-                const tipMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444 });
-                const tipMesh = new THREE.Mesh(tipGeometry, tipMaterial);
-                hand.add(tipMesh);
-            });
+            // Alternative: Listen for select events (more reliable)
+            hand1.addEventListener('select', onHandSelect);
+            hand2.addEventListener('select', onHandSelect);
+        }
+        
+        function onHandSelect(event) {
+            console.log('Hand select detected');
+            const hand = event.target;
+            checkHandInteraction(hand);
         }
         
         function onPinchStart(event) {
             console.log('Pinch started');
-            // Check what the hand is pointing at
             const hand = event.target;
+            
+            // Show pinch indicator
+            if (hand.userData.pinchIndicator) {
+                hand.userData.pinchIndicator.material.opacity = 0.8;
+                hand.userData.isPinching = true;
+            }
+            
+            // Check what the hand is pointing at
             checkHandInteraction(hand);
         }
         
         function onPinchEnd(event) {
             console.log('Pinch ended');
+            const hand = event.target;
+            
+            // Hide pinch indicator
+            if (hand.userData.pinchIndicator) {
+                hand.userData.pinchIndicator.material.opacity = 0;
+                hand.userData.isPinching = false;
+            }
         }
         
         function checkHandInteraction(hand) {
@@ -313,10 +373,15 @@
         function render() {
             // Update hand tracking interactions each frame
             if (isHandTrackingActive) {
-                handModels.forEach(hand => {
-                    if (hand.joints && hand.joints['index-finger-tip']) {
-                        // Update finger tip visualization
-                        // Hand tracking data processing here
+                handModels.forEach((hand, index) => {
+                    // Make hands always visible by ensuring proper rendering order
+                    hand.renderOrder = 999;
+                    
+                    // Update pinch indicator animation
+                    if (hand.userData.pinchIndicator && hand.userData.isPinching) {
+                        const time = Date.now() * 0.01;
+                        hand.userData.pinchIndicator.rotation.z = time;
+                        hand.userData.pinchIndicator.material.opacity = 0.5 + Math.sin(time) * 0.3;
                     }
                 });
             }
@@ -356,8 +421,9 @@
                 info.innerHTML = `
                     <h3>✋ Hand Tracking Active!</h3>
                     <p><strong>Folder panel</strong> is always visible</p>
-                    <p><strong>Point finger</strong> at items and pinch</p>
+                    <p><strong>Point finger</strong> at colored boxes and pinch</p>
                     <p><strong>Objects:</strong> ${placedObjects.length}</p>
+                    <button onclick="testPlacement()" style="background: #666; color: white; border: none; padding: 8px 15px; border-radius: 5px; margin-top: 10px;">Test Object Placement</button>
                 `;
                 
                 session.addEventListener('end', () => {
@@ -381,6 +447,13 @@
                     <button onclick="location.reload()">Try Again</button>
                 `;
             }
+        }
+        
+        // Test function to verify object placement works
+        function testPlacement() {
+            console.log('Testing object placement...');
+            create3DObject('laptop', anchorPoint);
+            updateStatus('LAPTOP (Test)');
         }
         
         // Initialize
