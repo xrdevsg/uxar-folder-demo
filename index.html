@@ -1,88 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Folder Portal - Hand Tracking Demo</title>
+    <title>Debug Hand Tracking</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            font-family: 'Arial', sans-serif;
-            background: #000;
-            overflow: hidden;
-        }
-        
-        #info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0,0,0,0.8);
-            padding: 15px;
-            border-radius: 10px;
-            z-index: 100;
-            max-width: 320px;
-        }
-        
-        #startAR {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 40px;
-            font-size: 18px;
-            background: #4a90e2;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            z-index: 100;
-            box-shadow: 0 4px 15px rgba(74,144,226,0.4);
-        }
-        
-        .status {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: rgba(74,144,226,0.9);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            z-index: 150;
-            display: none;
-        }
+        body { margin: 0; background: black; color: white; font-family: Arial; }
+        #info { position: fixed; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; z-index: 100; }
+        button { padding: 15px 30px; font-size: 16px; background: #4a90e2; color: white; border: none; border-radius: 10px; margin: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="info">
-        <h3>🗂️ AR Folder Portal - Hand Tracking</h3>
-        <p><strong>Features:</strong></p>
-        <ul>
-            <li>✋ Hand tracking for direct interaction</li>
-            <li>📁 Always-visible folder panel in 3D</li>
-            <li>🎯 Point finger to select items</li>
-            <li>📦 Objects anchor to physical space</li>
-        </ul>
-        <p><strong>Demo by:</strong> xrdevsg</p>
-    </div>
-    
-    <button id="startAR">Start Hand Tracking AR</button>
-    
-    <div id="status" class="status">
-        <h4>👆 Hand Tracking Active</h4>
-        <p>Point your finger at folder items to select them!</p>
-        <p>Objects will appear anchored in real space</p>
+        <h3>🐛 Hand Tracking Debug</h3>
+        <p>This version focuses on making hands visible</p>
+        <p id="status">Not started</p>
+        <button onclick="startSimpleAR()">Start Simple AR</button>
+        <button onclick="addTestHands()">Add Test Hands</button>
     </div>
     
     <script>
-        let scene, camera, renderer, session, referenceSpace;
-        let handModels = [];
-        let folderPanel, placedObjects = [];
-        let isHandTrackingActive = false;
-        let anchorPoint = new THREE.Vector3(0, 0, -1.5); // Fixed anchor in space
+        let scene, camera, renderer, session;
+        let hands = [];
+        let testObjects = [];
         
         function init() {
             scene = new THREE.Scene();
@@ -93,379 +34,127 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
             
-            // Enhanced lighting for hand tracking
-            const ambientLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 0.8);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
-            directionalLight.position.set(1, 1, 1);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
+            // Simple lighting
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+            scene.add(light);
             
             renderer.setAnimationLoop(render);
+            
+            updateStatus('Initialized - ready to start AR');
         }
         
-        function createFolderPanel() {
-            folderPanel = new THREE.Group();
-            
-            // Main panel background - always visible
-            const panelGeometry = new THREE.PlaneGeometry(0.8, 0.6);
-            const panelMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0xffffff, 
-                transparent: true, 
-                opacity: 0.95,
-                side: THREE.DoubleSide
-            });
-            const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-            folderPanel.add(panel);
-            
-            // Panel border
-            const borderGeometry = new THREE.EdgesGeometry(panelGeometry);
-            const borderMaterial = new THREE.LineBasicMaterial({ color: 0x4a90e2, linewidth: 2 });
-            const border = new THREE.LineSegments(borderGeometry, borderMaterial);
-            folderPanel.add(border);
-            
-            // Folder header
-            const headerGeometry = new THREE.PlaneGeometry(0.7, 0.08);
-            const headerMaterial = new THREE.MeshLambertMaterial({ color: 0x4a90e2 });
-            const header = new THREE.Mesh(headerGeometry, headerMaterial);
-            header.position.set(0, 0.22, 0.001);
-            folderPanel.add(header);
-            
-            // Create folder items as 3D clickable objects
-            const items = [
-                { name: 'LAPTOP', pos: [-0.2, 0.05, 0.002], color: 0x333333, type: 'laptop' },
-                { name: 'PHONE', pos: [0.2, 0.05, 0.002], color: 0x000000, type: 'phone' },
-                { name: 'AUDIO', pos: [-0.2, -0.15, 0.002], color: 0x4a90e2, type: 'headphones' },
-                { name: 'CAMERA', pos: [0.2, -0.15, 0.002], color: 0x666666, type: 'camera' }
-            ];
-            
-            items.forEach(item => {
-                // Item background
-                const itemGeometry = new THREE.PlaneGeometry(0.15, 0.15);
-                const itemMaterial = new THREE.MeshLambertMaterial({ 
-                    color: item.color,
-                    transparent: true,
-                    opacity: 0.8
-                });
-                const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
-                itemMesh.position.set(...item.pos);
-                
-                // Store item data
-                itemMesh.userData = {
-                    type: item.type,
-                    name: item.name,
-                    isInteractable: true,
-                    originalColor: item.color
-                };
-                
-                folderPanel.add(itemMesh);
-            });
-            
-            // Position folder panel in space (closer and more accessible)
-            folderPanel.position.set(0, 1.2, -0.8); // Closer to user, at comfortable reach
-            folderPanel.rotation.x = -Math.PI / 8; // Slight downward angle for easy reach
-            
-            scene.add(folderPanel);
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('Status:', message);
         }
         
-        function setupHandTracking() {
-            // Get hand tracking controllers
+        function addTestHands() {
+            // Add fake hands to see if rendering works
+            updateStatus('Adding test hands...');
+            
+            // Left hand (green)
+            const leftHandGroup = new THREE.Group();
+            const leftPalm = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            leftHandGroup.add(leftPalm);
+            leftHandGroup.position.set(-0.3, 1.5, -0.8);
+            scene.add(leftHandGroup);
+            
+            // Right hand (blue)  
+            const rightHandGroup = new THREE.Group();
+            const rightPalm = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: 0x0000ff })
+            );
+            rightHandGroup.add(rightPalm);
+            rightHandGroup.position.set(0.3, 1.5, -0.8);
+            scene.add(rightHandGroup);
+            
+            testObjects.push(leftHandGroup, rightHandGroup);
+            updateStatus('Test hands added - should see green and blue spheres');
+        }
+        
+        function setupRealHandTracking() {
+            updateStatus('Setting up real hand tracking...');
+            
             const hand1 = renderer.xr.getHand(0);
             const hand2 = renderer.xr.getHand(1);
             
-            // Add hand models to scene
             scene.add(hand1);
             scene.add(hand2);
+            hands = [hand1, hand2];
             
-            handModels = [hand1, hand2];
-            
-            // Create visible hand representations
-            handModels.forEach((hand, index) => {
-                // Create hand skeleton visualization
-                const handGroup = new THREE.Group();
+            // Add very simple visualization
+            hands.forEach((hand, index) => {
+                const color = index === 0 ? 0xff0000 : 0x00ffff; // Red/Cyan for visibility
                 
-                // Palm
-                const palmGeometry = new THREE.SphereGeometry(0.03, 8, 8);
+                // Large sphere for palm
+                const palmGeometry = new THREE.SphereGeometry(0.05);
                 const palmMaterial = new THREE.MeshBasicMaterial({ 
-                    color: index === 0 ? 0x44ff44 : 0x4444ff,
+                    color: color,
                     transparent: true,
-                    opacity: 0.7
+                    opacity: 0.8
                 });
-                const palmMesh = new THREE.Mesh(palmGeometry, palmMaterial);
-                handGroup.add(palmMesh);
+                const palm = new THREE.Mesh(palmGeometry, palmMaterial);
+                hand.add(palm);
                 
-                // Finger tips
-                for (let i = 0; i < 5; i++) {
-                    const fingerGeometry = new THREE.SphereGeometry(0.008, 6, 6);
-                    const fingerMaterial = new THREE.MeshBasicMaterial({ 
-                        color: index === 0 ? 0x88ff88 : 0x8888ff 
-                    });
-                    const fingerMesh = new THREE.Mesh(fingerGeometry, fingerMaterial);
-                    fingerMesh.position.set(
-                        (i - 2) * 0.02,
-                        0.05,
-                        0.02
-                    );
-                    handGroup.add(fingerMesh);
-                }
-                
-                // Pinch indicator (grows when pinching)
-                const pinchGeometry = new THREE.RingGeometry(0.01, 0.03, 8);
-                const pinchMaterial = new THREE.MeshBasicMaterial({ 
-                    color: 0xff4444,
-                    transparent: true,
-                    opacity: 0
+                // Add event listeners
+                hand.addEventListener('connected', () => {
+                    updateStatus(`Hand ${index + 1} connected!`);
                 });
-                const pinchIndicator = new THREE.Mesh(pinchGeometry, pinchMaterial);
-                pinchIndicator.position.set(0, 0.03, 0.02);
-                handGroup.add(pinchIndicator);
                 
-                hand.add(handGroup);
-                hand.userData.pinchIndicator = pinchIndicator;
-                hand.userData.isPinching = false;
+                hand.addEventListener('disconnected', () => {
+                    updateStatus(`Hand ${index + 1} disconnected`);
+                });
             });
             
-            // Hand tracking event listeners
-            hand1.addEventListener('pinchstart', onPinchStart);
-            hand1.addEventListener('pinchend', onPinchEnd);
-            hand2.addEventListener('pinchstart', onPinchStart);
-            hand2.addEventListener('pinchend', onPinchEnd);
-            
-            // Alternative: Listen for select events (more reliable)
-            hand1.addEventListener('select', onHandSelect);
-            hand2.addEventListener('select', onHandSelect);
+            updateStatus('Hand tracking setup complete');
         }
         
-        function onHandSelect(event) {
-            console.log('Hand select detected');
-            const hand = event.target;
-            checkHandInteraction(hand);
-        }
-        
-        function onPinchStart(event) {
-            console.log('Pinch started');
-            const hand = event.target;
+        async function startSimpleAR() {
+            updateStatus('Starting AR...');
             
-            // Show pinch indicator
-            if (hand.userData.pinchIndicator) {
-                hand.userData.pinchIndicator.material.opacity = 0.8;
-                hand.userData.isPinching = true;
-            }
-            
-            // Check what the hand is pointing at
-            checkHandInteraction(hand);
-        }
-        
-        function onPinchEnd(event) {
-            console.log('Pinch ended');
-            const hand = event.target;
-            
-            // Hide pinch indicator
-            if (hand.userData.pinchIndicator) {
-                hand.userData.pinchIndicator.material.opacity = 0;
-                hand.userData.isPinching = false;
-            }
-        }
-        
-        function checkHandInteraction(hand) {
-            // Create raycaster from hand position
-            const raycaster = new THREE.Raycaster();
-            const handPosition = new THREE.Vector3();
-            const handDirection = new THREE.Vector3(0, 0, -1);
-            
-            hand.getWorldPosition(handPosition);
-            raycaster.set(handPosition, handDirection);
-            
-            // Check intersection with folder items
-            const intersects = raycaster.intersectObjects(folderPanel.children, true);
-            
-            if (intersects.length > 0) {
-                const intersectedObject = intersects[0].object;
-                if (intersectedObject.userData.isInteractable) {
-                    selectFolderItem(intersectedObject);
-                }
-            }
-        }
-        
-        function selectFolderItem(itemMesh) {
-            const itemData = itemMesh.userData;
-            console.log('Selected:', itemData.name);
-            
-            // Visual feedback - flash the item
-            itemMesh.material.color.setHex(0xffffff);
-            setTimeout(() => {
-                itemMesh.material.color.setHex(itemData.originalColor);
-            }, 200);
-            
-            // Create 3D object near anchor point
-            create3DObject(itemData.type, anchorPoint);
-            
-            // Update status
-            updateStatus(itemData.name);
-        }
-        
-        function create3DObject(type, basePosition) {
-            let geometry, material, color;
-            
-            switch(type) {
-                case 'laptop':
-                    geometry = new THREE.BoxGeometry(0.25, 0.015, 0.18);
-                    color = 0x333333;
-                    break;
-                case 'phone':
-                    geometry = new THREE.BoxGeometry(0.06, 0.12, 0.008);
-                    color = 0x000000;
-                    break;
-                case 'headphones':
-                    geometry = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
-                    color = 0x4a90e2;
-                    break;
-                case 'camera':
-                    geometry = new THREE.BoxGeometry(0.1, 0.06, 0.05);
-                    color = 0x666666;
-                    break;
-                default:
-                    geometry = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-                    color = 0xff6b35;
-            }
-            
-            material = new THREE.MeshLambertMaterial({ color: color });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            // Position relative to anchor point (like Adam's demo)
-            const offsetX = (Math.random() - 0.5) * 0.6;
-            const offsetZ = (Math.random() - 0.5) * 0.6;
-            
-            mesh.position.set(
-                basePosition.x + offsetX,
-                basePosition.y - 0.2 + Math.random() * 0.1,
-                basePosition.z + offsetZ
-            );
-            
-            // Add floating animation
-            const startTime = Date.now();
-            function animate() {
-                const elapsed = (Date.now() - startTime) * 0.001;
-                mesh.rotation.y += 0.01;
-                const baseY = basePosition.y - 0.2;
-                mesh.position.y = baseY + Math.sin(elapsed * 2) * 0.02;
+            try {
+                session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local-floor'],
+                    optionalFeatures: ['hand-tracking']
+                });
                 
-                if (scene.children.includes(mesh)) {
-                    requestAnimationFrame(animate);
-                }
+                updateStatus('AR session created');
+                
+                const referenceSpace = await session.requestReferenceSpace('local-floor');
+                updateStatus('Reference space created');
+                
+                renderer.xr.setSession(session);
+                updateStatus('Renderer session set');
+                
+                // Setup hand tracking
+                setupRealHandTracking();
+                
+                updateStatus('AR started! Move your hands around');
+                
+            } catch (error) {
+                updateStatus('AR failed: ' + error.message);
+                console.error('AR Error:', error);
             }
-            animate();
-            
-            scene.add(mesh);
-            placedObjects.push(mesh);
-        }
-        
-        function updateStatus(itemName) {
-            const status = document.getElementById('status');
-            status.innerHTML = `
-                <h4>👆 Hand Tracking Active</h4>
-                <p><strong>✅ ${itemName} placed!</strong></p>
-                <p>Objects: ${placedObjects.length} | Keep pointing and pinching!</p>
-            `;
         }
         
         function render() {
-            // Update hand tracking interactions each frame
-            if (isHandTrackingActive) {
-                handModels.forEach((hand, index) => {
-                    // Make hands always visible by ensuring proper rendering order
-                    hand.renderOrder = 999;
-                    
-                    // Update pinch indicator animation
-                    if (hand.userData.pinchIndicator && hand.userData.isPinching) {
-                        const time = Date.now() * 0.01;
-                        hand.userData.pinchIndicator.rotation.z = time;
-                        hand.userData.pinchIndicator.material.opacity = 0.5 + Math.sin(time) * 0.3;
-                    }
-                });
-            }
+            // Animate test objects
+            testObjects.forEach((obj, index) => {
+                if (obj) {
+                    obj.rotation.y += 0.01;
+                    obj.position.y += Math.sin(Date.now() * 0.001 + index) * 0.002;
+                }
+            });
             
             renderer.render(scene, camera);
         }
         
-        async function startAR() {
-            const info = document.getElementById('info');
-            
-            try {
-                info.innerHTML = '<h3>🔄 Starting Hand Tracking AR...</h3><p>Requesting camera and hand tracking access...</p>';
-                
-                // Request AR session with hand tracking
-                session = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local-floor'],
-                    optionalFeatures: ['hand-tracking', 'bounded-floor']
-                });
-                
-                referenceSpace = await session.requestReferenceSpace('local-floor');
-                
-                // Set up XR session
-                renderer.xr.setSession(session);
-                
-                // Create always-visible folder panel
-                createFolderPanel();
-                
-                // Set up hand tracking
-                setupHandTracking();
-                
-                // Show status
-                document.getElementById('status').style.display = 'block';
-                document.getElementById('startAR').style.display = 'none';
-                
-                isHandTrackingActive = true;
-                
-                info.innerHTML = `
-                    <h3>✋ Hand Tracking Active!</h3>
-                    <p><strong>Folder panel</strong> is always visible</p>
-                    <p><strong>Point finger</strong> at colored boxes and pinch</p>
-                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
-                    <button onclick="testPlacement()" style="background: #666; color: white; border: none; padding: 8px 15px; border-radius: 5px; margin-top: 10px;">Test Object Placement</button>
-                `;
-                
-                session.addEventListener('end', () => {
-                    document.getElementById('status').style.display = 'none';
-                    document.getElementById('startAR').style.display = 'block';
-                    isHandTrackingActive = false;
-                });
-                
-            } catch (error) {
-                console.error('Hand Tracking AR Error:', error);
-                info.innerHTML = `
-                    <h3>❌ Hand Tracking Not Available</h3>
-                    <p>This device may not support hand tracking</p>
-                    <p><strong>Requirements:</strong></p>
-                    <ul>
-                        <li>Meta Quest 2/3 or newer</li>
-                        <li>Hand tracking enabled in settings</li>
-                        <li>Good lighting conditions</li>
-                    </ul>
-                    <p><small>Error: ${error.message}</small></p>
-                    <button onclick="location.reload()">Try Again</button>
-                `;
-            }
-        }
-        
-        // Test function to verify object placement works
-        function testPlacement() {
-            console.log('Testing object placement...');
-            create3DObject('laptop', anchorPoint);
-            updateStatus('LAPTOP (Test)');
-        }
-        
         // Initialize
         init();
-        document.getElementById('startAR').addEventListener('click', startAR);
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
     </script>
 </body>
 </html>
