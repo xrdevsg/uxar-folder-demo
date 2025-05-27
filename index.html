@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minimal AR Test</title>
+    <title>Working AR Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial; background: black; color: white; }
         #info { position: absolute; top: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; }
@@ -12,60 +13,118 @@
 </head>
 <body>
     <div id="info">
-        <h3>🧪 Minimal AR Test</h3>
-        <p>Testing exact same approach as working WebXR samples</p>
+        <h3>🗂️ AR Folder Portal - Fixed!</h3>
+        <p>Tap "Start AR" → Touch screen to place objects!</p>
+        <p><strong>Demo by:</strong> xrdevsg</p>
         <button onclick="startAR()">Start AR</button>
     </div>
     
     <script>
+        let scene, camera, renderer, session, referenceSpace;
+        let placedObjects = [];
+        
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            
+            // Lighting
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            scene.add(light);
+            
+            renderer.setAnimationLoop(render);
+        }
+        
+        function render() {
+            renderer.render(scene, camera);
+        }
+        
+        function createObject() {
+            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: Math.random() * 0xffffff 
+            });
+            const cube = new THREE.Mesh(geometry, material);
+            
+            // Place in front of camera
+            cube.position.set(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 0.5 + 0.5,
+                -1 - Math.random()
+            );
+            
+            // Add animation
+            const startTime = Date.now();
+            function animate() {
+                const elapsed = (Date.now() - startTime) * 0.001;
+                cube.rotation.y += 0.02;
+                cube.position.y += Math.sin(elapsed * 3) * 0.005;
+                
+                if (scene.children.includes(cube)) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            animate();
+            
+            scene.add(cube);
+            placedObjects.push(cube);
+            
+            // Update UI
+            const info = document.getElementById('info');
+            info.innerHTML = `
+                <h3>🎉 AR Active!</h3>
+                <p>Tap screen to place more objects!</p>
+                <p>Objects: ${placedObjects.length}</p>
+            `;
+        }
+        
         async function startAR() {
             const info = document.getElementById('info');
             
             try {
-                info.innerHTML = '<h3>🔄 Step 1: Checking WebXR...</h3>';
+                info.innerHTML = '<h3>🔄 Starting AR...</h3>';
                 
-                if (!navigator.xr) {
-                    info.innerHTML = '<h3>❌ WebXR not available</h3>';
-                    return;
-                }
-                
-                info.innerHTML = '<h3>🔄 Step 2: Checking AR support...</h3>';
-                
-                const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (!supported) {
-                    info.innerHTML = '<h3>❌ AR not supported</h3>';
-                    return;
-                }
-                
-                info.innerHTML = '<h3>🔄 Step 3: Requesting session...</h3>';
-                
-                // Use EXACT same parameters as working sample
+                // We know this works from your test!
                 const session = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local-floor'],
                     optionalFeatures: ['bounded-floor', 'hand-tracking']
                 });
                 
-                info.innerHTML = '<h3>🔄 Step 4: Getting reference space...</h3>';
+                referenceSpace = await session.requestReferenceSpace('local-floor');
                 
-                const referenceSpace = await session.requestReferenceSpace('local-floor');
+                // Set up controller for touch
+                const controller = renderer.xr.getController(0);
+                controller.addEventListener('select', createObject);
+                scene.add(controller);
                 
-                info.innerHTML = '<h3>✅ SUCCESS!</h3><p>AR session active with local-floor reference space</p>';
+                // This is the key - start the XR session in renderer
+                await renderer.xr.setSession(session);
                 
-                // Simple test - just show we got here
-                session.addEventListener('end', () => {
-                    info.innerHTML = '<h3>AR Session Ended</h3><button onclick="startAR()">Try Again</button>';
-                });
+                info.innerHTML = `
+                    <h3>🎉 AR Started!</h3>
+                    <p>Tap anywhere to place colorful cubes!</p>
+                    <p>Objects: 0</p>
+                `;
+                
+                // Place first object automatically
+                setTimeout(createObject, 1000);
                 
             } catch (error) {
                 console.error('AR Error:', error);
                 info.innerHTML = `
                     <h3>❌ Failed</h3>
-                    <p><strong>Error:</strong> ${error.name}</p>
-                    <p><strong>Message:</strong> ${error.message}</p>
+                    <p>${error.message}</p>
                     <button onclick="startAR()">Try Again</button>
                 `;
             }
         }
+        
+        // Initialize Three.js
+        init();
     </script>
 </body>
 </html>
