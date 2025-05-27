@@ -160,16 +160,16 @@
             </div>
         </div>
         <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #666;">
-            Drag items to AR space
+            Tap items to place in AR
         </div>
     </div>
     
     <div id="instructions">
-        <h4>🎯 How to Use</h4>
+        <h4>🎯 AR Folder Portal</h4>
         <p><strong>1.</strong> See the folder panel on the right</p>
-        <p><strong>2.</strong> Drag any item from folder</p>
-        <p><strong>3.</strong> Drop into AR space as 3D object</p>
-        <p><strong>4.</strong> Items become real 3D models!</p>
+        <p><strong>2.</strong> TAP any item (Laptop, Phone, etc.)</p>
+        <p><strong>3.</strong> Watch it appear as 3D object in AR!</p>
+        <p><em>Folders become portals to AR space</em></p>
     </div>
     
     <script>
@@ -268,12 +268,11 @@
             const folderItems = document.querySelectorAll('.folder-item');
             
             folderItems.forEach(item => {
+                // Desktop drag and drop
                 item.addEventListener('dragstart', (e) => {
                     isDragging = true;
                     dragItem = e.target.dataset.type;
                     e.dataTransfer.effectAllowed = 'copy';
-                    
-                    // Visual feedback
                     e.target.style.opacity = '0.5';
                 });
                 
@@ -282,31 +281,40 @@
                     isDragging = false;
                 });
                 
-                // Touch events for mobile
-                item.addEventListener('touchstart', (e) => {
-                    isDragging = true;
-                    dragItem = e.target.dataset.type;
-                    e.target.style.transform = 'scale(1.1)';
-                });
-                
-                item.addEventListener('touchend', (e) => {
-                    if (isDragging && dragItem) {
-                        // Place object in front of camera
-                        const position = new THREE.Vector3(
-                            (Math.random() - 0.5) * 2,
-                            0.5,
-                            -1.5 - Math.random()
-                        );
-                        create3DObject(dragItem, position);
-                    }
+                // Mobile touch - simplified tap to place
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (!arActive) return;
                     
-                    e.target.style.transform = '';
-                    isDragging = false;
-                    dragItem = null;
+                    const itemType = e.currentTarget.dataset.type;
+                    
+                    // Visual feedback
+                    e.currentTarget.style.transform = 'scale(0.9)';
+                    setTimeout(() => {
+                        e.currentTarget.style.transform = '';
+                    }, 150);
+                    
+                    // Place object in AR space
+                    const position = new THREE.Vector3(
+                        (Math.random() - 0.5) * 2,
+                        0.3 + Math.random() * 0.4,
+                        -1 - Math.random() * 1.5
+                    );
+                    
+                    create3DObject(itemType, position);
+                    
+                    // Show feedback
+                    const info = document.getElementById('info');
+                    info.innerHTML = `
+                        <h3>🗂️ AR Folder Active</h3>
+                        <p><strong>✅ ${itemType.toUpperCase()} placed!</strong></p>
+                        <p><strong>Objects:</strong> ${placedObjects.length}</p>
+                        <p><em>Tap folder items to place objects</em></p>
+                    `;
                 });
             });
             
-            // Drop zone for desktop
+            // Desktop drop zone
             document.addEventListener('dragover', (e) => {
                 e.preventDefault();
             });
@@ -316,8 +324,8 @@
                 if (dragItem && arActive) {
                     const position = new THREE.Vector3(
                         (Math.random() - 0.5) * 2,
-                        0.5,
-                        -1.5 - Math.random()
+                        0.3 + Math.random() * 0.4,
+                        -1 - Math.random() * 1.5
                     );
                     create3DObject(dragItem, position);
                 }
