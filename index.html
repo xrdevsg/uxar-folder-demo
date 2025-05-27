@@ -1,27 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Working AR Demo</title>
+    <title>AR Folder Portal - Drag to Real World</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; font-family: Arial; background: black; color: white; }
-        #info { position: absolute; top: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; }
-        button { padding: 15px 30px; font-size: 18px; background: #ff6b35; color: white; border: none; border-radius: 25px; cursor: pointer; }
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            overflow: hidden;
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            z-index: 100;
+            max-width: 280px;
+        }
+        
+        #startAR {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            font-size: 18px;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(74,144,226,0.4);
+        }
+        
+        /* 2D Folder UI Panel */
+        #folderUI {
+            position: absolute;
+            top: 100px;
+            right: 30px;
+            width: 200px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            z-index: 200;
+            display: none;
+        }
+        
+        .folder-header {
+            text-align: center;
+            color: #4a90e2;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #4a90e2;
+            padding-bottom: 10px;
+        }
+        
+        .folder-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .folder-item {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: grab;
+            transition: all 0.3s ease;
+            user-select: none;
+            position: relative;
+        }
+        
+        .folder-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .folder-item:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        
+        .folder-item .icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .drag-preview {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1000;
+            transform: scale(1.2);
+            opacity: 0.8;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            right: 30px;
+            background: rgba(74,144,226,0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 150;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div id="info">
-        <h3>🗂️ AR Folder Portal - Fixed!</h3>
-        <p>Tap "Start AR" → Touch screen to place objects!</p>
+        <h3>🗂️ AR Folder Portal</h3>
+        <p><strong>Concept:</strong> Drag items from 2D folder UI into 3D AR space!</p>
         <p><strong>Demo by:</strong> xrdevsg</p>
-        <button onclick="startAR()">Start AR</button>
+    </div>
+    
+    <button id="startAR">Enter AR Mode</button>
+    
+    <!-- 2D Folder UI Panel -->
+    <div id="folderUI">
+        <div class="folder-header">
+            📁 FOLDER
+        </div>
+        <div class="folder-grid">
+            <div class="folder-item" data-type="laptop" draggable="true">
+                <div class="icon">💻</div>
+                <div>LAPTOP</div>
+            </div>
+            <div class="folder-item" data-type="phone" draggable="true">
+                <div class="icon">📱</div>
+                <div>PHONE</div>
+            </div>
+            <div class="folder-item" data-type="headphones" draggable="true">
+                <div class="icon">🎧</div>
+                <div>AUDIO</div>
+            </div>
+            <div class="folder-item" data-type="camera" draggable="true">
+                <div class="icon">📷</div>
+                <div>CAMERA</div>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #666;">
+            Drag items to AR space
+        </div>
+    </div>
+    
+    <div id="instructions">
+        <h4>🎯 How to Use</h4>
+        <p><strong>1.</strong> See the folder panel on the right</p>
+        <p><strong>2.</strong> Drag any item from folder</p>
+        <p><strong>3.</strong> Drop into AR space as 3D object</p>
+        <p><strong>4.</strong> Items become real 3D models!</p>
     </div>
     
     <script>
         let scene, camera, renderer, session, referenceSpace;
+        let folderUI, isDragging = false, dragItem = null;
         let placedObjects = [];
+        let arActive = false;
         
         function init() {
             scene = new THREE.Scene();
@@ -33,118 +188,207 @@
             document.body.appendChild(renderer.domElement);
             
             // Lighting
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            scene.add(light);
+            const ambientLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
             
             renderer.setAnimationLoop(render);
+        }
+        
+        function create3DObject(type, position) {
+            let geometry, material, color;
+            
+            switch(type) {
+                case 'laptop':
+                    // Laptop shape - flat rectangle
+                    geometry = new THREE.BoxGeometry(0.3, 0.02, 0.2);
+                    color = 0x333333;
+                    break;
+                case 'phone':
+                    // Phone shape - tall rectangle
+                    geometry = new THREE.BoxGeometry(0.08, 0.15, 0.01);
+                    color = 0x000000;
+                    break;
+                case 'headphones':
+                    // Headphones - torus shape
+                    geometry = new THREE.TorusGeometry(0.08, 0.02, 8, 16);
+                    color = 0x4a90e2;
+                    break;
+                case 'camera':
+                    // Camera - box with cylinder
+                    geometry = new THREE.BoxGeometry(0.12, 0.08, 0.06);
+                    color = 0x666666;
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                    color = 0xff6b35;
+            }
+            
+            material = new THREE.MeshLambertMaterial({ color: color });
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Position the object
+            mesh.position.copy(position);
+            mesh.position.y += 0.1; // Slightly above surface
+            
+            // Add subtle animation
+            const startTime = Date.now();
+            function animate() {
+                const elapsed = (Date.now() - startTime) * 0.001;
+                mesh.rotation.y += 0.005;
+                mesh.position.y = position.y + 0.1 + Math.sin(elapsed * 2) * 0.01;
+                
+                if (scene.children.includes(mesh)) {
+                    requestAnimationFrame(animate);
+                }
+            }
+            animate();
+            
+            scene.add(mesh);
+            placedObjects.push(mesh);
+            
+            updateUI();
+        }
+        
+        function updateUI() {
+            if (arActive) {
+                document.getElementById('info').innerHTML = `
+                    <h3>🗂️ AR Folder Active</h3>
+                    <p><strong>Drag items</strong> from folder panel</p>
+                    <p><strong>Objects placed:</strong> ${placedObjects.length}</p>
+                    <p><em>Folders → AR Space</em></p>
+                `;
+            }
+        }
+        
+        function setupDragAndDrop() {
+            const folderItems = document.querySelectorAll('.folder-item');
+            
+            folderItems.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    isDragging = true;
+                    dragItem = e.target.dataset.type;
+                    e.dataTransfer.effectAllowed = 'copy';
+                    
+                    // Visual feedback
+                    e.target.style.opacity = '0.5';
+                });
+                
+                item.addEventListener('dragend', (e) => {
+                    e.target.style.opacity = '1';
+                    isDragging = false;
+                });
+                
+                // Touch events for mobile
+                item.addEventListener('touchstart', (e) => {
+                    isDragging = true;
+                    dragItem = e.target.dataset.type;
+                    e.target.style.transform = 'scale(1.1)';
+                });
+                
+                item.addEventListener('touchend', (e) => {
+                    if (isDragging && dragItem) {
+                        // Place object in front of camera
+                        const position = new THREE.Vector3(
+                            (Math.random() - 0.5) * 2,
+                            0.5,
+                            -1.5 - Math.random()
+                        );
+                        create3DObject(dragItem, position);
+                    }
+                    
+                    e.target.style.transform = '';
+                    isDragging = false;
+                    dragItem = null;
+                });
+            });
+            
+            // Drop zone for desktop
+            document.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            
+            document.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (dragItem && arActive) {
+                    const position = new THREE.Vector3(
+                        (Math.random() - 0.5) * 2,
+                        0.5,
+                        -1.5 - Math.random()
+                    );
+                    create3DObject(dragItem, position);
+                }
+                isDragging = false;
+                dragItem = null;
+            });
         }
         
         function render() {
             renderer.render(scene, camera);
         }
         
-        function createObject() {
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-            const material = new THREE.MeshLambertMaterial({ 
-                color: Math.random() * 0xffffff 
-            });
-            const cube = new THREE.Mesh(geometry, material);
-            
-            // Place in front of camera
-            cube.position.set(
-                (Math.random() - 0.5) * 2,
-                Math.random() * 0.5 + 0.5,
-                -1 - Math.random()
-            );
-            
-            // Add animation
-            const startTime = Date.now();
-            function animate() {
-                const elapsed = (Date.now() - startTime) * 0.001;
-                cube.rotation.y += 0.02;
-                cube.position.y += Math.sin(elapsed * 3) * 0.005;
-                
-                if (scene.children.includes(cube)) {
-                    requestAnimationFrame(animate);
-                }
-            }
-            animate();
-            
-            scene.add(cube);
-            placedObjects.push(cube);
-            
-            // Update UI
-            const info = document.getElementById('info');
-            info.innerHTML = `
-                <h3>🎉 AR Active!</h3>
-                <p>Tap screen to place more objects!</p>
-                <p>Objects: ${placedObjects.length}</p>
-            `;
-        }
-        
         async function startAR() {
             const info = document.getElementById('info');
             
             try {
-                info.innerHTML = '<h3>🔄 Starting AR...</h3>';
+                info.innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera access...</p>';
                 
-                // We know this works from your test!
-                const session = await navigator.xr.requestSession('immersive-ar', {
+                session = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local-floor'],
                     optionalFeatures: ['bounded-floor', 'hand-tracking']
                 });
                 
                 referenceSpace = await session.requestReferenceSpace('local-floor');
                 
-                info.innerHTML = '<h3>🔄 Setting up renderer...</h3>';
-                
-                // Set up controller for touch
-                const controller = renderer.xr.getController(0);
-                controller.addEventListener('select', createObject);
-                scene.add(controller);
-                
-                // Critical: Start the XR session in renderer BEFORE updating UI
+                // Set up XR session
                 renderer.xr.setSession(session);
                 
-                // Hide the button and show AR UI
-                document.querySelector('button').style.display = 'none';
+                // Show the folder UI
+                document.getElementById('folderUI').style.display = 'block';
+                document.getElementById('instructions').style.display = 'block';
+                document.getElementById('startAR').style.display = 'none';
                 
-                info.innerHTML = `
-                    <h3>🎉 AR Active!</h3>
-                    <p>You should see camera view now!</p>
-                    <p>Tap anywhere to place cubes</p>
-                    <p>Objects: 0</p>
-                `;
+                arActive = true;
+                updateUI();
                 
-                // Place first object automatically after 2 seconds
+                // Hide instructions after 8 seconds
                 setTimeout(() => {
-                    createObject();
-                    info.innerHTML = `
-                        <h3>🎉 AR Active!</h3>
-                        <p>Tap screen for more cubes!</p>
-                        <p>Objects: ${placedObjects.length}</p>
-                    `;
-                }, 2000);
+                    document.getElementById('instructions').style.display = 'none';
+                }, 8000);
                 
-                // Session end handler
                 session.addEventListener('end', () => {
-                    info.innerHTML = '<h3>AR Session Ended</h3><button onclick="startAR()">Start Again</button>';
-                    document.querySelector('button').style.display = 'block';
+                    document.getElementById('folderUI').style.display = 'none';
+                    document.getElementById('instructions').style.display = 'none';
+                    document.getElementById('startAR').style.display = 'block';
+                    arActive = false;
                 });
                 
             } catch (error) {
                 console.error('AR Error:', error);
                 info.innerHTML = `
-                    <h3>❌ Renderer Failed</h3>
-                    <p>${error.message}</p>
-                    <p>Session works but display failed</p>
-                    <button onclick="startAR()">Try Again</button>
+                    <h3>❌ AR Not Available</h3>
+                    <p>This device may not support WebXR AR</p>
+                    <p><small>${error.message}</small></p>
+                    <button onclick="location.reload()">Try Again</button>
                 `;
             }
         }
         
-        // Initialize Three.js
+        // Initialize
         init();
+        setupDragAndDrop();
+        
+        document.getElementById('startAR').addEventListener('click', startAR);
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
