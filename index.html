@@ -335,40 +335,56 @@
         }
         
         // AR Session management
-        document.getElementById('startAR').addEventListener('click', () => {
+        document.getElementById('startAR').addEventListener('click', async () => {
             console.log('Enter AR button clicked');
-            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera permission...</p>';
+            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 1: Checking WebXR...</p>';
             
-            if (navigator.xr) {
-                console.log('WebXR available, requesting AR session...');
-                
-                // Try with minimal features first
-                navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local']
-                }).then((session) => {
-                    console.log('AR session started successfully!');
-                    renderer.xr.setSession(session);
-                    document.getElementById('startAR').style.display = 'none';
-                    document.getElementById('info').innerHTML = `
-                        <h3>🗂️ AR Active!</h3>
-                        <p>Point device at ground → Touch folder items → Drag to place 3D objects!</p>
-                        <p>Objects: ${placedObjects.length}</p>
-                    `;
-                    isARActive = true;
-                }).catch((error) => {
-                    console.error('AR session failed:', error);
-                    document.getElementById('info').innerHTML = `
-                        <h3>⚠️ AR Session Failed</h3>
-                        <p>Error: ${error.message}</p>
-                        <p>Your device supports WebXR but AR session failed.</p>
-                        <button onclick="location.reload()">Try Again</button>
-                    `;
-                });
-            } else {
+            if (!navigator.xr) {
                 console.error('WebXR not available');
+                document.getElementById('info').innerHTML = '<h3>⚠️ WebXR Not Supported</h3>';
+                return;
+            }
+            
+            console.log('WebXR available, checking AR support...');
+            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 2: Checking AR support...</p>';
+            
+            try {
+                const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                console.log('AR supported:', isSupported);
+                
+                if (!isSupported) {
+                    document.getElementById('info').innerHTML = '<h3>⚠️ AR Not Supported</h3><p>This device does not support immersive AR.</p>';
+                    return;
+                }
+                
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 3: Requesting camera permission...</p>';
+                console.log('Requesting AR session...');
+                
+                // Try without any features first
+                const session = await navigator.xr.requestSession('immersive-ar');
+                console.log('AR session created successfully!');
+                
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 4: Initializing renderer...</p>';
+                
+                await renderer.xr.setSession(session);
+                console.log('Renderer session set successfully!');
+                
+                document.getElementById('startAR').style.display = 'none';
                 document.getElementById('info').innerHTML = `
-                    <h3>⚠️ WebXR Not Supported</h3>
-                    <p>This browser doesn't support WebXR.</p>
+                    <h3>🎉 AR Active!</h3>
+                    <p>Point device at ground → Touch folder items!</p>
+                    <p>Objects: ${placedObjects.length}</p>
+                `;
+                isARActive = true;
+                
+            } catch (error) {
+                console.error('AR failed at step:', error);
+                document.getElementById('info').innerHTML = `
+                    <h3>❌ AR Failed</h3>
+                    <p><strong>Error:</strong> ${error.name}</p>
+                    <p><strong>Message:</strong> ${error.message}</p>
+                    <p><strong>Step:</strong> Check browser console for details</p>
+                    <button onclick="location.reload()">Try Again</button>
                 `;
             }
         });
