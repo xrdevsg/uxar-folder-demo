@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Folder Portal - Complete Demo</title>
+    <title>AR Folder Portal - Hand Tracking Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -22,7 +22,7 @@
             padding: 15px;
             border-radius: 10px;
             z-index: 100;
-            max-width: 280px;
+            max-width: 320px;
         }
         
         #startAR {
@@ -41,74 +41,11 @@
             box-shadow: 0 4px 15px rgba(74,144,226,0.4);
         }
         
-        /* 2D Folder UI Panel */
-        #folderUI {
-            position: fixed;
-            top: 120px;
-            right: 20px;
-            width: 180px;
-            background: rgba(255,255,255,0.95);
-            border-radius: 15px;
-            padding: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            z-index: 999;
-            display: none;
-            border: 2px solid #4a90e2;
-        }
-        
-        .folder-header {
-            text-align: center;
-            color: #4a90e2;
-            font-weight: bold;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #4a90e2;
-            padding-bottom: 10px;
-        }
-        
-        .folder-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        
-        .folder-item {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 10px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            user-select: none;
-            position: relative;
-        }
-        
-        .folder-item:hover {
-            transform: scale(1.05);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        .folder-item:active {
-            transform: scale(0.95);
-        }
-        
-        .folder-item .icon {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-        
-        #instructions {
+        .status {
             position: absolute;
-            bottom: 30px;
-            left: 30px;
-            right: 30px;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
             background: rgba(74,144,226,0.9);
             color: white;
             padding: 15px;
@@ -117,68 +54,35 @@
             z-index: 150;
             display: none;
         }
-        
-        .debug-button {
-            background: #666;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            cursor: pointer;
-        }
     </style>
 </head>
 <body>
     <div id="info">
-        <h3>🗂️ AR Folder Portal</h3>
-        <p><strong>Concept:</strong> Tap folder items → 3D objects appear in AR!</p>
+        <h3>🗂️ AR Folder Portal - Hand Tracking</h3>
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li>✋ Hand tracking for direct interaction</li>
+            <li>📁 Always-visible folder panel in 3D</li>
+            <li>🎯 Point finger to select items</li>
+            <li>📦 Objects anchor to physical space</li>
+        </ul>
         <p><strong>Demo by:</strong> xrdevsg</p>
-        <button onclick="testPanel()" class="debug-button">Test Panel</button>
     </div>
     
-    <button id="startAR">Enter AR Mode</button>
+    <button id="startAR">Start Hand Tracking AR</button>
     
-    <!-- 2D Folder UI Panel -->
-    <div id="folderUI">
-        <div class="folder-header">
-            📁 FOLDER
-        </div>
-        <div class="folder-grid">
-            <div class="folder-item" data-type="laptop">
-                <div class="icon">💻</div>
-                <div>LAPTOP</div>
-            </div>
-            <div class="folder-item" data-type="phone">
-                <div class="icon">📱</div>
-                <div>PHONE</div>
-            </div>
-            <div class="folder-item" data-type="headphones">
-                <div class="icon">🎧</div>
-                <div>AUDIO</div>
-            </div>
-            <div class="folder-item" data-type="camera">
-                <div class="icon">📷</div>
-                <div>CAMERA</div>
-            </div>
-        </div>
-        <div style="text-align: center; margin-top: 15px; font-size: 12px; color: #666;">
-            Tap items to place in AR
-        </div>
-    </div>
-    
-    <div id="instructions">
-        <h4>🎯 AR Folder Portal</h4>
-        <p><strong>1.</strong> See the folder panel on the right</p>
-        <p><strong>2.</strong> TAP any item (Laptop, Phone, etc.)</p>
-        <p><strong>3.</strong> Watch it appear as 3D object in AR!</p>
-        <p><em>Folders become portals to AR space</em></p>
+    <div id="status" class="status">
+        <h4>👆 Hand Tracking Active</h4>
+        <p>Point your finger at folder items to select them!</p>
+        <p>Objects will appear anchored in real space</p>
     </div>
     
     <script>
         let scene, camera, renderer, session, referenceSpace;
-        let placedObjects = [];
-        let arActive = false;
+        let handModels = [];
+        let folderPanel, placedObjects = [];
+        let isHandTrackingActive = false;
+        let anchorPoint = new THREE.Vector3(0, 0, -1.5); // Fixed anchor in space
         
         function init() {
             scene = new THREE.Scene();
@@ -189,54 +93,203 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
             
-            // Lighting
-            const ambientLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            // Enhanced lighting for hand tracking
+            const ambientLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 0.8);
             scene.add(ambientLight);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
             directionalLight.position.set(1, 1, 1);
+            directionalLight.castShadow = true;
             scene.add(directionalLight);
             
             renderer.setAnimationLoop(render);
         }
         
-        function create3DObject(type, position) {
+        function createFolderPanel() {
+            folderPanel = new THREE.Group();
+            
+            // Main panel background - always visible
+            const panelGeometry = new THREE.PlaneGeometry(0.8, 0.6);
+            const panelMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.95,
+                side: THREE.DoubleSide
+            });
+            const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+            folderPanel.add(panel);
+            
+            // Panel border
+            const borderGeometry = new THREE.EdgesGeometry(panelGeometry);
+            const borderMaterial = new THREE.LineBasicMaterial({ color: 0x4a90e2, linewidth: 2 });
+            const border = new THREE.LineSegments(borderGeometry, borderMaterial);
+            folderPanel.add(border);
+            
+            // Folder header
+            const headerGeometry = new THREE.PlaneGeometry(0.7, 0.08);
+            const headerMaterial = new THREE.MeshLambertMaterial({ color: 0x4a90e2 });
+            const header = new THREE.Mesh(headerGeometry, headerMaterial);
+            header.position.set(0, 0.22, 0.001);
+            folderPanel.add(header);
+            
+            // Create folder items as 3D clickable objects
+            const items = [
+                { name: 'LAPTOP', pos: [-0.2, 0.05, 0.002], color: 0x333333, type: 'laptop' },
+                { name: 'PHONE', pos: [0.2, 0.05, 0.002], color: 0x000000, type: 'phone' },
+                { name: 'AUDIO', pos: [-0.2, -0.15, 0.002], color: 0x4a90e2, type: 'headphones' },
+                { name: 'CAMERA', pos: [0.2, -0.15, 0.002], color: 0x666666, type: 'camera' }
+            ];
+            
+            items.forEach(item => {
+                // Item background
+                const itemGeometry = new THREE.PlaneGeometry(0.15, 0.15);
+                const itemMaterial = new THREE.MeshLambertMaterial({ 
+                    color: item.color,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
+                itemMesh.position.set(...item.pos);
+                
+                // Store item data
+                itemMesh.userData = {
+                    type: item.type,
+                    name: item.name,
+                    isInteractable: true,
+                    originalColor: item.color
+                };
+                
+                folderPanel.add(itemMesh);
+            });
+            
+            // Position folder panel in space (like Adam's demo)
+            folderPanel.position.copy(anchorPoint);
+            folderPanel.position.y += 0.3; // Slightly above anchor
+            folderPanel.rotation.x = -Math.PI / 6; // Slight angle for visibility
+            
+            scene.add(folderPanel);
+        }
+        
+        function setupHandTracking() {
+            // Get hand tracking controllers
+            const hand1 = renderer.xr.getHand(0);
+            const hand2 = renderer.xr.getHand(1);
+            
+            // Add hand models to scene
+            scene.add(hand1);
+            scene.add(hand2);
+            
+            handModels = [hand1, hand2];
+            
+            // Hand tracking event listeners
+            hand1.addEventListener('pinchstart', onPinchStart);
+            hand1.addEventListener('pinchend', onPinchEnd);
+            hand2.addEventListener('pinchstart', onPinchStart);
+            hand2.addEventListener('pinchend', onPinchEnd);
+            
+            // Create hand visualization
+            handModels.forEach((hand, index) => {
+                // Add finger tip indicator
+                const tipGeometry = new THREE.SphereGeometry(0.005, 8, 8);
+                const tipMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+                const tipMesh = new THREE.Mesh(tipGeometry, tipMaterial);
+                hand.add(tipMesh);
+            });
+        }
+        
+        function onPinchStart(event) {
+            console.log('Pinch started');
+            // Check what the hand is pointing at
+            const hand = event.target;
+            checkHandInteraction(hand);
+        }
+        
+        function onPinchEnd(event) {
+            console.log('Pinch ended');
+        }
+        
+        function checkHandInteraction(hand) {
+            // Create raycaster from hand position
+            const raycaster = new THREE.Raycaster();
+            const handPosition = new THREE.Vector3();
+            const handDirection = new THREE.Vector3(0, 0, -1);
+            
+            hand.getWorldPosition(handPosition);
+            raycaster.set(handPosition, handDirection);
+            
+            // Check intersection with folder items
+            const intersects = raycaster.intersectObjects(folderPanel.children, true);
+            
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+                if (intersectedObject.userData.isInteractable) {
+                    selectFolderItem(intersectedObject);
+                }
+            }
+        }
+        
+        function selectFolderItem(itemMesh) {
+            const itemData = itemMesh.userData;
+            console.log('Selected:', itemData.name);
+            
+            // Visual feedback - flash the item
+            itemMesh.material.color.setHex(0xffffff);
+            setTimeout(() => {
+                itemMesh.material.color.setHex(itemData.originalColor);
+            }, 200);
+            
+            // Create 3D object near anchor point
+            create3DObject(itemData.type, anchorPoint);
+            
+            // Update status
+            updateStatus(itemData.name);
+        }
+        
+        function create3DObject(type, basePosition) {
             let geometry, material, color;
             
             switch(type) {
                 case 'laptop':
-                    geometry = new THREE.BoxGeometry(0.3, 0.02, 0.2);
+                    geometry = new THREE.BoxGeometry(0.25, 0.015, 0.18);
                     color = 0x333333;
                     break;
                 case 'phone':
-                    geometry = new THREE.BoxGeometry(0.08, 0.15, 0.01);
+                    geometry = new THREE.BoxGeometry(0.06, 0.12, 0.008);
                     color = 0x000000;
                     break;
                 case 'headphones':
-                    geometry = new THREE.TorusGeometry(0.08, 0.02, 8, 16);
+                    geometry = new THREE.TorusGeometry(0.06, 0.015, 8, 16);
                     color = 0x4a90e2;
                     break;
                 case 'camera':
-                    geometry = new THREE.BoxGeometry(0.12, 0.08, 0.06);
+                    geometry = new THREE.BoxGeometry(0.1, 0.06, 0.05);
                     color = 0x666666;
                     break;
                 default:
-                    geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                    geometry = new THREE.BoxGeometry(0.08, 0.08, 0.08);
                     color = 0xff6b35;
             }
             
             material = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geometry, material);
             
-            mesh.position.copy(position);
-            mesh.position.y += 0.1;
+            // Position relative to anchor point (like Adam's demo)
+            const offsetX = (Math.random() - 0.5) * 0.6;
+            const offsetZ = (Math.random() - 0.5) * 0.6;
             
-            // Animation
+            mesh.position.set(
+                basePosition.x + offsetX,
+                basePosition.y - 0.2 + Math.random() * 0.1,
+                basePosition.z + offsetZ
+            );
+            
+            // Add floating animation
             const startTime = Date.now();
             function animate() {
                 const elapsed = (Date.now() - startTime) * 0.001;
-                mesh.rotation.y += 0.005;
-                mesh.position.y = position.y + 0.1 + Math.sin(elapsed * 2) * 0.01;
+                mesh.rotation.y += 0.01;
+                const baseY = basePosition.y - 0.2;
+                mesh.position.y = baseY + Math.sin(elapsed * 2) * 0.02;
                 
                 if (scene.children.includes(mesh)) {
                     requestAnimationFrame(animate);
@@ -246,60 +299,28 @@
             
             scene.add(mesh);
             placedObjects.push(mesh);
-            
-            updateUI(type);
         }
         
-        function updateUI(lastPlaced = '') {
-            const info = document.getElementById('info');
-            if (lastPlaced) {
-                info.innerHTML = `
-                    <h3>🗂️ AR Folder Active</h3>
-                    <p><strong>✅ ${lastPlaced.toUpperCase()} placed!</strong></p>
-                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
-                    <p><em>Tap more folder items!</em></p>
-                    <button onclick="testPanel()" class="debug-button">Test Panel</button>
-                `;
-            } else {
-                info.innerHTML = `
-                    <h3>🗂️ AR Folder Active</h3>
-                    <p><strong>Tap items</strong> from folder panel</p>
-                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
-                    <p><em>Folders → AR Space</em></p>
-                    <button onclick="testPanel()" class="debug-button">Test Panel</button>
-                `;
-            }
-        }
-        
-        function setupFolderInteraction() {
-            const folderItems = document.querySelectorAll('.folder-item');
-            
-            folderItems.forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    
-                    const itemType = e.currentTarget.dataset.type;
-                    console.log('Tapped:', itemType);
-                    
-                    // Visual feedback
-                    e.currentTarget.style.transform = 'scale(0.9)';
-                    setTimeout(() => {
-                        e.currentTarget.style.transform = '';
-                    }, 150);
-                    
-                    // Place object in AR space
-                    const position = new THREE.Vector3(
-                        (Math.random() - 0.5) * 2,
-                        0.3 + Math.random() * 0.4,
-                        -1 - Math.random() * 1.5
-                    );
-                    
-                    create3DObject(itemType, position);
-                });
-            });
+        function updateStatus(itemName) {
+            const status = document.getElementById('status');
+            status.innerHTML = `
+                <h4>👆 Hand Tracking Active</h4>
+                <p><strong>✅ ${itemName} placed!</strong></p>
+                <p>Objects: ${placedObjects.length} | Keep pointing and pinching!</p>
+            `;
         }
         
         function render() {
+            // Update hand tracking interactions each frame
+            if (isHandTrackingActive) {
+                handModels.forEach(hand => {
+                    if (hand.joints && hand.joints['index-finger-tip']) {
+                        // Update finger tip visualization
+                        // Hand tracking data processing here
+                    }
+                });
+            }
+            
             renderer.render(scene, camera);
         }
         
@@ -307,59 +328,63 @@
             const info = document.getElementById('info');
             
             try {
-                info.innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera access...</p>';
+                info.innerHTML = '<h3>🔄 Starting Hand Tracking AR...</h3><p>Requesting camera and hand tracking access...</p>';
                 
+                // Request AR session with hand tracking
                 session = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local-floor'],
-                    optionalFeatures: ['bounded-floor', 'hand-tracking']
+                    optionalFeatures: ['hand-tracking', 'bounded-floor']
                 });
                 
                 referenceSpace = await session.requestReferenceSpace('local-floor');
+                
+                // Set up XR session
                 renderer.xr.setSession(session);
                 
-                // Show UI
-                document.getElementById('folderUI').style.display = 'block';
-                document.getElementById('instructions').style.display = 'block';
+                // Create always-visible folder panel
+                createFolderPanel();
+                
+                // Set up hand tracking
+                setupHandTracking();
+                
+                // Show status
+                document.getElementById('status').style.display = 'block';
                 document.getElementById('startAR').style.display = 'none';
                 
-                arActive = true;
-                updateUI();
+                isHandTrackingActive = true;
                 
-                // Hide instructions after 8 seconds
-                setTimeout(() => {
-                    document.getElementById('instructions').style.display = 'none';
-                }, 8000);
+                info.innerHTML = `
+                    <h3>✋ Hand Tracking Active!</h3>
+                    <p><strong>Folder panel</strong> is always visible</p>
+                    <p><strong>Point finger</strong> at items and pinch</p>
+                    <p><strong>Objects:</strong> ${placedObjects.length}</p>
+                `;
                 
                 session.addEventListener('end', () => {
-                    document.getElementById('folderUI').style.display = 'none';
-                    document.getElementById('instructions').style.display = 'none';
+                    document.getElementById('status').style.display = 'none';
                     document.getElementById('startAR').style.display = 'block';
-                    arActive = false;
+                    isHandTrackingActive = false;
                 });
                 
             } catch (error) {
-                console.error('AR Error:', error);
+                console.error('Hand Tracking AR Error:', error);
                 info.innerHTML = `
-                    <h3>❌ AR Not Available</h3>
-                    <p>This device may not support WebXR AR</p>
-                    <p><small>${error.message}</small></p>
+                    <h3>❌ Hand Tracking Not Available</h3>
+                    <p>This device may not support hand tracking</p>
+                    <p><strong>Requirements:</strong></p>
+                    <ul>
+                        <li>Meta Quest 2/3 or newer</li>
+                        <li>Hand tracking enabled in settings</li>
+                        <li>Good lighting conditions</li>
+                    </ul>
+                    <p><small>Error: ${error.message}</small></p>
                     <button onclick="location.reload()">Try Again</button>
                 `;
             }
         }
         
-        // Debug function
-        function testPanel() {
-            console.log('Testing panel...');
-            document.getElementById('folderUI').style.display = 'block';
-            document.getElementById('instructions').style.display = 'block';
-            arActive = true;
-            updateUI();
-        }
-        
         // Initialize
         init();
-        setupFolderInteraction();
         document.getElementById('startAR').addEventListener('click', startAR);
         
         // Handle window resize
