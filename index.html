@@ -45,58 +45,24 @@
         #startAR:hover {
             background: #e55a2b;
         }
-        
-        .folder-panel {
-            position: absolute;
-            background: rgba(255,255,255,0.9);
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-        }
-        
-        .folder-item {
-            width: 60px;
-            height: 60px;
-            margin: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            cursor: grab;
-            transition: transform 0.2s;
-        }
-        
-        .folder-item:hover {
-            transform: scale(1.1);
-        }
-        
-        .folder-item:active {
-            cursor: grabbing;
-        }
     </style>
 </head>
 <body>
     <div id="info">
         <h3>🗂️ AR Folder Portal</h3>
-        <p>Tap "Enter AR" → Point at ground → Drag items from folder to real world!</p>
+        <p>Tap "Enter AR" → Point at ground → Touch screen to place objects!</p>
         <p><strong>Demo by:</strong> xrdevsg</p>
     </div>
     
     <button id="startAR">Enter AR Mode</button>
     
     <script>
-        let scene, camera, renderer, controller;
-        let folderGroup, selectedObject;
+        let scene, camera, renderer, session, referenceSpace;
         let placedObjects = [];
         let isARActive = false;
         
         // Initialize the scene
         function init() {
-            // Scene setup
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             
@@ -113,271 +79,137 @@
             directionalLight.position.set(1, 1, 1);
             scene.add(directionalLight);
             
-            // Create folder panel
-            createFolderPanel();
-            
-            // Setup controllers for interaction
-            setupControllers();
-            
             // Start render loop
             renderer.setAnimationLoop(render);
         }
         
-        function createFolderPanel() {
-            folderGroup = new THREE.Group();
-            
-            // Panel background
-            const panelGeometry = new THREE.PlaneGeometry(1.2, 0.8);
-            const panelMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xffffff, 
-                transparent: true, 
-                opacity: 0.9 
-            });
-            const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-            folderGroup.add(panel);
-            
-            // Panel border
-            const borderGeometry = new THREE.EdgesGeometry(panelGeometry);
-            const borderMaterial = new THREE.LineBasicMaterial({ color: 0x333333 });
-            const border = new THREE.LineSegments(borderGeometry, borderMaterial);
-            folderGroup.add(border);
-            
-            // Folder title
-            const titleGeometry = new THREE.PlaneGeometry(0.8, 0.1);
-            const titleMaterial = new THREE.MeshBasicMaterial({ color: 0x4a90e2 });
-            const title = new THREE.Mesh(titleGeometry, titleMaterial);
-            title.position.set(0, 0.3, 0.001);
-            folderGroup.add(title);
-            
-            // Create draggable items
-            createFolderItems();
-            
-            // Position folder panel
-            folderGroup.position.set(-0.7, 1.5, -1.2);
-            folderGroup.rotation.set(-0.1, 0.3, 0);
-            scene.add(folderGroup);
-        }
-        
-        function createFolderItems() {
-            const items = [
-                { name: 'Cube', color: 0xff6b35, geometry: 'box' },
-                { name: 'Sphere', color: 0x4ecdc4, geometry: 'sphere' },
-                { name: 'Pyramid', color: 0x45b7d1, geometry: 'cone' },
-                { name: 'Cylinder', color: 0x96ceb4, geometry: 'cylinder' }
-            ];
-            
-            items.forEach((item, index) => {
-                const itemGroup = new THREE.Group();
-                
-                // Item background
-                const itemGeometry = new THREE.PlaneGeometry(0.15, 0.15);
-                const itemMaterial = new THREE.MeshBasicMaterial({ 
-                    color: item.color,
-                    transparent: true,
-                    opacity: 0.8
-                });
-                const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
-                itemGroup.add(itemMesh);
-                
-                // Store item data
-                itemGroup.userData = {
-                    type: item.geometry,
-                    color: item.color,
-                    name: item.name,
-                    isDraggable: true
-                };
-                
-                // Position items in grid
-                const x = (index % 2) * 0.25 - 0.125;
-                const y = Math.floor(index / 2) * -0.25 + 0.05;
-                itemGroup.position.set(x, y, 0.002);
-                
-                folderGroup.add(itemGroup);
-            });
-        }
-        
-        function setupControllers() {
-            // Add controller for hand tracking / touch
-            controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
-            controller.addEventListener('selectstart', onSelectStart);
-            controller.addEventListener('selectend', onSelectEnd);
-            scene.add(controller);
-            
-            // Add visual controller representation
-            const controllerGeometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(0, 0, 0),
-                new THREE.Vector3(0, 0, -1)
-            ]);
-            const controllerLine = new THREE.Line(controllerGeometry);
-            controllerLine.name = 'line';
-            controllerLine.scale.z = 5;
-            controller.add(controllerLine);
-        }
-        
-        function onSelectStart() {
-            // Check for folder item selection
-            const intersectedObject = getIntersectedObject();
-            if (intersectedObject && intersectedObject.userData.isDraggable) {
-                selectedObject = intersectedObject;
-                // Create 3D preview
-                create3DPreview(intersectedObject.userData);
-            }
-        }
-        
-        function onSelect() {
-            if (selectedObject) {
-                // Place object in AR space
-                placeObjectInAR();
-            }
-        }
-        
-        function onSelectEnd() {
-            selectedObject = null;
-        }
-        
-        function getIntersectedObject() {
-            const raycaster = new THREE.Raycaster();
-            const tempMatrix = new THREE.Matrix4();
-            
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-            
-            const intersects = raycaster.intersectObjects(folderGroup.children, true);
-            return intersects.length > 0 ? intersects[0].object.parent : null;
-        }
-        
-        function create3DPreview(itemData) {
+        function createObjectAt(position, type = 'cube') {
             let geometry;
+            let color;
             
-            switch(itemData.type) {
-                case 'box':
-                    geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-                    break;
+            switch(type) {
                 case 'sphere':
-                    geometry = new THREE.SphereGeometry(0.1, 16, 16);
+                    geometry = new THREE.SphereGeometry(0.05, 16, 16);
+                    color = 0x4ecdc4;
                     break;
                 case 'cone':
-                    geometry = new THREE.ConeGeometry(0.1, 0.2, 8);
+                    geometry = new THREE.ConeGeometry(0.05, 0.1, 8);
+                    color = 0x45b7d1;
                     break;
                 case 'cylinder':
-                    geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 8);
+                    geometry = new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8);
+                    color = 0x96ceb4;
                     break;
+                default: // cube
+                    geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                    color = 0xff6b35;
             }
             
-            const material = new THREE.MeshLambertMaterial({ 
-                color: itemData.color,
-                transparent: true,
-                opacity: 0.8
-            });
-            
+            const material = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.userData = { ...itemData, isPreview: true };
             
-            // Position preview near controller
-            controller.add(mesh);
-            mesh.position.set(0, 0, -0.5);
-        }
-        
-        function placeObjectInAR() {
-            if (!selectedObject) return;
+            mesh.position.copy(position);
+            mesh.position.y += 0.05; // Slightly above surface
             
-            // Remove preview from controller
-            const preview = controller.children.find(child => child.userData.isPreview);
-            if (preview) {
-                controller.remove(preview);
-                
-                // Create permanent object in world space
-                const worldPosition = new THREE.Vector3();
-                const worldQuaternion = new THREE.Quaternion();
-                const worldScale = new THREE.Vector3();
-                
-                preview.getWorldPosition(worldPosition);
-                preview.getWorldQuaternion(worldQuaternion);
-                preview.getWorldScale(worldScale);
-                
-                const permanentObject = preview.clone();
-                permanentObject.material = permanentObject.material.clone();
-                permanentObject.material.opacity = 1.0;
-                permanentObject.userData.isPreview = false;
-                
-                permanentObject.position.copy(worldPosition);
-                permanentObject.quaternion.copy(worldQuaternion);
-                permanentObject.scale.copy(worldScale);
-                
-                scene.add(permanentObject);
-                placedObjects.push(permanentObject);
-                
-                // Add floating animation
-                animateObject(permanentObject);
-            }
-        }
-        
-        function animateObject(object) {
-            const originalY = object.position.y;
+            // Add animation
             const startTime = Date.now();
-            
             function animate() {
                 const elapsed = (Date.now() - startTime) * 0.001;
-                object.position.y = originalY + Math.sin(elapsed * 2) * 0.02;
-                object.rotation.y += 0.01;
+                mesh.rotation.y += 0.01;
+                mesh.position.y = position.y + 0.05 + Math.sin(elapsed * 3) * 0.01;
                 
-                if (scene.children.includes(object)) {
+                if (scene.children.includes(mesh)) {
                     requestAnimationFrame(animate);
                 }
             }
             animate();
+            
+            scene.add(mesh);
+            placedObjects.push(mesh);
+            
+            // Update UI
+            updateObjectCount();
+        }
+        
+        function updateObjectCount() {
+            if (isARActive) {
+                const infoDiv = document.getElementById('info');
+                if (infoDiv) {
+                    infoDiv.innerHTML = `
+                        <h3>🎉 AR Active!</h3>
+                        <p>Tap screen to place objects!</p>
+                        <p>Objects placed: ${placedObjects.length}</p>
+                        <p><small>Tap objects to cycle types</small></p>
+                    `;
+                }
+            }
+        }
+        
+        function onSelect(event) {
+            if (!isARActive || !referenceSpace) return;
+            
+            const controller = event.target;
+            
+            // Get controller position and place object there
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            
+            const position = new THREE.Vector3();
+            position.setFromMatrixPosition(controller.matrixWorld);
+            
+            // Move object in front of controller
+            const direction = new THREE.Vector3(0, 0, -0.5);
+            direction.applyMatrix4(tempMatrix);
+            position.add(direction);
+            
+            // Cycle through object types
+            const types = ['cube', 'sphere', 'cone', 'cylinder'];
+            const typeIndex = placedObjects.length % types.length;
+            
+            createObjectAt(position, types[typeIndex]);
         }
         
         function render() {
             renderer.render(scene, camera);
         }
         
-        // AR Session management
+        // AR Session management - FIXED VERSION
         document.getElementById('startAR').addEventListener('click', async () => {
             console.log('Enter AR button clicked');
-            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 1: Checking WebXR...</p>';
+            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Checking WebXR support...</p>';
             
             if (!navigator.xr) {
-                console.error('WebXR not available');
                 document.getElementById('info').innerHTML = '<h3>⚠️ WebXR Not Supported</h3>';
                 return;
             }
             
-            console.log('WebXR available, checking AR support...');
-            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 2: Checking AR support...</p>';
-            
             try {
+                // Check AR support
                 const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-                console.log('AR supported:', isSupported);
-                
                 if (!isSupported) {
-                    document.getElementById('info').innerHTML = '<h3>⚠️ AR Not Supported</h3><p>This device does not support immersive AR.</p>';
+                    document.getElementById('info').innerHTML = '<h3>⚠️ AR Not Supported</h3>';
                     return;
                 }
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 3: Requesting AR session...</p>';
-                console.log('Requesting AR session without features...');
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera permission...</p>';
                 
-                // Try without any required features
-                const session = await navigator.xr.requestSession('immersive-ar');
+                // Request AR session
+                session = await navigator.xr.requestSession('immersive-ar');
                 console.log('AR session created successfully!');
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 4: Testing reference spaces...</p>';
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Setting up tracking...</p>';
                 
-                // Try different reference space types
-                let referenceSpace;
-                const spaceTypes = ['viewer', 'local', 'local-floor', 'bounded-floor', 'unbounded'];
+                // Try different reference spaces until one works
+                const spaceTypes = ['viewer', 'local', 'local-floor'];
                 
                 for (const spaceType of spaceTypes) {
                     try {
                         console.log(`Trying reference space: ${spaceType}`);
                         referenceSpace = await session.requestReferenceSpace(spaceType);
-                        console.log(`Success with reference space: ${spaceType}`);
+                        console.log(`✅ Success with reference space: ${spaceType}`);
                         break;
                     } catch (e) {
-                        console.log(`Failed reference space ${spaceType}:`, e.message);
+                        console.log(`❌ Failed reference space ${spaceType}:`, e.message);
                     }
                 }
                 
@@ -385,27 +217,25 @@
                     throw new Error('No supported reference space found');
                 }
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 5: Setting up renderer...</p>';
+                // Set up controller for touch interaction
+                const controller = renderer.xr.getController(0);
+                controller.addEventListener('select', onSelect);
+                scene.add(controller);
                 
+                // Start XR session
                 await renderer.xr.setSession(session);
-                console.log('Renderer session set successfully!');
+                console.log('✅ AR session active!');
                 
                 document.getElementById('startAR').style.display = 'none';
-                document.getElementById('info').innerHTML = `
-                    <h3>🎉 AR Active!</h3>
-                    <p>Point device at ground → Touch folder items!</p>
-                    <p>Reference space: ${referenceSpace.constructor.name}</p>
-                    <p>Objects: ${placedObjects.length}</p>
-                `;
                 isARActive = true;
+                updateObjectCount();
                 
             } catch (error) {
-                console.error('AR failed:', error);
+                console.error('❌ AR failed:', error);
                 document.getElementById('info').innerHTML = `
                     <h3>❌ AR Failed</h3>
-                    <p><strong>Error:</strong> ${error.name}</p>
-                    <p><strong>Message:</strong> ${error.message}</p>
-                    <p>Check console for reference space details</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>Your device may not support this AR feature.</p>
                     <button onclick="location.reload()">Try Again</button>
                 `;
             }
