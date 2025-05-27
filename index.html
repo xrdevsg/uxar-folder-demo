@@ -1,263 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AR Folder Portal - WebXR Demo</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>Minimal AR Test</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden;
-        }
-        
-        #info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            border-radius: 10px;
-            z-index: 100;
-            max-width: 300px;
-        }
-        
-        #startAR {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 40px;
-            font-size: 18px;
-            background: #ff6b35;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            z-index: 100;
-            box-shadow: 0 4px 15px rgba(255,107,53,0.4);
-        }
-        
-        #startAR:hover {
-            background: #e55a2b;
-        }
+        body { margin: 0; font-family: Arial; background: black; color: white; }
+        #info { position: absolute; top: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; }
+        button { padding: 15px 30px; font-size: 18px; background: #ff6b35; color: white; border: none; border-radius: 25px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="info">
-        <h3>🗂️ AR Folder Portal</h3>
-        <p>Tap "Enter AR" → Point at ground → Touch screen to place objects!</p>
-        <p><strong>Demo by:</strong> xrdevsg</p>
+        <h3>🧪 Minimal AR Test</h3>
+        <p>Testing exact same approach as working WebXR samples</p>
+        <button onclick="startAR()">Start AR</button>
     </div>
     
-    <button id="startAR">Enter AR Mode</button>
-    
     <script>
-        let scene, camera, renderer, session, referenceSpace;
-        let placedObjects = [];
-        let isARActive = false;
-        
-        // Initialize the scene
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-            
-            // Lighting
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            scene.add(light);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            directionalLight.position.set(1, 1, 1);
-            scene.add(directionalLight);
-            
-            // Start render loop
-            renderer.setAnimationLoop(render);
-        }
-        
-        function createObjectAt(position, type = 'cube') {
-            let geometry;
-            let color;
-            
-            switch(type) {
-                case 'sphere':
-                    geometry = new THREE.SphereGeometry(0.05, 16, 16);
-                    color = 0x4ecdc4;
-                    break;
-                case 'cone':
-                    geometry = new THREE.ConeGeometry(0.05, 0.1, 8);
-                    color = 0x45b7d1;
-                    break;
-                case 'cylinder':
-                    geometry = new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8);
-                    color = 0x96ceb4;
-                    break;
-                default: // cube
-                    geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                    color = 0xff6b35;
-            }
-            
-            const material = new THREE.MeshLambertMaterial({ color: color });
-            const mesh = new THREE.Mesh(geometry, material);
-            
-            mesh.position.copy(position);
-            mesh.position.y += 0.05; // Slightly above surface
-            
-            // Add animation
-            const startTime = Date.now();
-            function animate() {
-                const elapsed = (Date.now() - startTime) * 0.001;
-                mesh.rotation.y += 0.01;
-                mesh.position.y = position.y + 0.05 + Math.sin(elapsed * 3) * 0.01;
-                
-                if (scene.children.includes(mesh)) {
-                    requestAnimationFrame(animate);
-                }
-            }
-            animate();
-            
-            scene.add(mesh);
-            placedObjects.push(mesh);
-            
-            // Update UI
-            updateObjectCount();
-        }
-        
-        function updateObjectCount() {
-            if (isARActive) {
-                const infoDiv = document.getElementById('info');
-                if (infoDiv) {
-                    infoDiv.innerHTML = `
-                        <h3>🎉 AR Active!</h3>
-                        <p>Tap screen to place objects!</p>
-                        <p>Objects placed: ${placedObjects.length}</p>
-                        <p><small>Tap objects to cycle types</small></p>
-                    `;
-                }
-            }
-        }
-        
-        function onSelect(event) {
-            if (!isARActive || !referenceSpace) return;
-            
-            const controller = event.target;
-            
-            // Get controller position and place object there
-            const tempMatrix = new THREE.Matrix4();
-            tempMatrix.identity().extractRotation(controller.matrixWorld);
-            
-            const position = new THREE.Vector3();
-            position.setFromMatrixPosition(controller.matrixWorld);
-            
-            // Move object in front of controller
-            const direction = new THREE.Vector3(0, 0, -0.5);
-            direction.applyMatrix4(tempMatrix);
-            position.add(direction);
-            
-            // Cycle through object types
-            const types = ['cube', 'sphere', 'cone', 'cylinder'];
-            const typeIndex = placedObjects.length % types.length;
-            
-            createObjectAt(position, types[typeIndex]);
-        }
-        
-        function render() {
-            renderer.render(scene, camera);
-        }
-        
-        // AR Session management - FIXED VERSION
-        document.getElementById('startAR').addEventListener('click', async () => {
-            console.log('Enter AR button clicked');
-            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Checking WebXR support...</p>';
-            
-            if (!navigator.xr) {
-                document.getElementById('info').innerHTML = '<h3>⚠️ WebXR Not Supported</h3>';
-                return;
-            }
+        async function startAR() {
+            const info = document.getElementById('info');
             
             try {
-                // Check AR support
-                const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (!isSupported) {
-                    document.getElementById('info').innerHTML = '<h3>⚠️ AR Not Supported</h3>';
+                info.innerHTML = '<h3>🔄 Step 1: Checking WebXR...</h3>';
+                
+                if (!navigator.xr) {
+                    info.innerHTML = '<h3>❌ WebXR not available</h3>';
                     return;
                 }
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera permission...</p>';
+                info.innerHTML = '<h3>🔄 Step 2: Checking AR support...</h3>';
                 
-                // Request AR session
-                session = await navigator.xr.requestSession('immersive-ar');
-                console.log('AR session created successfully!');
-                
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Setting up tracking...</p>';
-                
-                // Try different reference spaces until one works
-                const spaceTypes = ['viewer', 'local', 'local-floor'];
-                
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Testing reference spaces...</p>';
-                
-                for (const spaceType of spaceTypes) {
-                    try {
-                        console.log(`Trying reference space: ${spaceType}`);
-                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>Trying: ${spaceType}...</p>`;
-                        
-                        referenceSpace = await session.requestReferenceSpace(spaceType);
-                        console.log(`✅ Success with reference space: ${spaceType}`);
-                        
-                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>✅ Using: ${spaceType}</p>`;
-                        break;
-                    } catch (e) {
-                        console.log(`❌ Failed reference space ${spaceType}:`, e.message);
-                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>❌ ${spaceType} failed: ${e.message}</p>`;
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 sec to see error
-                    }
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    info.innerHTML = '<h3>❌ AR not supported</h3>';
+                    return;
                 }
                 
-                if (!referenceSpace) {
-                    throw new Error('No supported reference space found: viewer, local, local-floor all failed');
-                }
+                info.innerHTML = '<h3>🔄 Step 3: Requesting session...</h3>';
                 
-                // Set up controller for touch interaction
-                const controller = renderer.xr.getController(0);
-                controller.addEventListener('select', onSelect);
-                scene.add(controller);
+                // Use EXACT same parameters as working sample
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local-floor'],
+                    optionalFeatures: ['bounded-floor', 'hand-tracking']
+                });
                 
-                // Start XR session
-                await renderer.xr.setSession(session);
-                console.log('✅ AR session active!');
+                info.innerHTML = '<h3>🔄 Step 4: Getting reference space...</h3>';
                 
-                document.getElementById('startAR').style.display = 'none';
-                isARActive = true;
-                updateObjectCount();
+                const referenceSpace = await session.requestReferenceSpace('local-floor');
+                
+                info.innerHTML = '<h3>✅ SUCCESS!</h3><p>AR session active with local-floor reference space</p>';
+                
+                // Simple test - just show we got here
+                session.addEventListener('end', () => {
+                    info.innerHTML = '<h3>AR Session Ended</h3><button onclick="startAR()">Try Again</button>';
+                });
                 
             } catch (error) {
-                console.error('❌ AR failed:', error);
-                document.getElementById('info').innerHTML = `
-                    <h3>❌ AR Failed</h3>
-                    <p><strong>Error:</strong> ${error.message}</p>
-                    <p>Your device may not support this AR feature.</p>
-                    <button onclick="location.reload()">Try Again</button>
+                console.error('AR Error:', error);
+                info.innerHTML = `
+                    <h3>❌ Failed</h3>
+                    <p><strong>Error:</strong> ${error.name}</p>
+                    <p><strong>Message:</strong> ${error.message}</p>
+                    <button onclick="startAR()">Try Again</button>
                 `;
             }
-        });
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        // Initialize everything
-        init();
+        }
     </script>
 </body>
 </html>
