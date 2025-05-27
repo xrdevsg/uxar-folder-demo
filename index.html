@@ -96,28 +96,48 @@
                 
                 referenceSpace = await session.requestReferenceSpace('local-floor');
                 
+                info.innerHTML = '<h3>🔄 Setting up renderer...</h3>';
+                
                 // Set up controller for touch
                 const controller = renderer.xr.getController(0);
                 controller.addEventListener('select', createObject);
                 scene.add(controller);
                 
-                // This is the key - start the XR session in renderer
-                await renderer.xr.setSession(session);
+                // Critical: Start the XR session in renderer BEFORE updating UI
+                renderer.xr.setSession(session);
+                
+                // Hide the button and show AR UI
+                document.querySelector('button').style.display = 'none';
                 
                 info.innerHTML = `
-                    <h3>🎉 AR Started!</h3>
-                    <p>Tap anywhere to place colorful cubes!</p>
+                    <h3>🎉 AR Active!</h3>
+                    <p>You should see camera view now!</p>
+                    <p>Tap anywhere to place cubes</p>
                     <p>Objects: 0</p>
                 `;
                 
-                // Place first object automatically
-                setTimeout(createObject, 1000);
+                // Place first object automatically after 2 seconds
+                setTimeout(() => {
+                    createObject();
+                    info.innerHTML = `
+                        <h3>🎉 AR Active!</h3>
+                        <p>Tap screen for more cubes!</p>
+                        <p>Objects: ${placedObjects.length}</p>
+                    `;
+                }, 2000);
+                
+                // Session end handler
+                session.addEventListener('end', () => {
+                    info.innerHTML = '<h3>AR Session Ended</h3><button onclick="startAR()">Start Again</button>';
+                    document.querySelector('button').style.display = 'block';
+                });
                 
             } catch (error) {
                 console.error('AR Error:', error);
                 info.innerHTML = `
-                    <h3>❌ Failed</h3>
+                    <h3>❌ Renderer Failed</h3>
                     <p>${error.message}</p>
+                    <p>Session works but display failed</p>
                     <button onclick="startAR()">Try Again</button>
                 `;
             }
