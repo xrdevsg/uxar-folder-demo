@@ -202,19 +202,27 @@
                 // Try different reference spaces until one works
                 const spaceTypes = ['viewer', 'local', 'local-floor'];
                 
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Testing reference spaces...</p>';
+                
                 for (const spaceType of spaceTypes) {
                     try {
                         console.log(`Trying reference space: ${spaceType}`);
+                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>Trying: ${spaceType}...</p>`;
+                        
                         referenceSpace = await session.requestReferenceSpace(spaceType);
                         console.log(`✅ Success with reference space: ${spaceType}`);
+                        
+                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>✅ Using: ${spaceType}</p>`;
                         break;
                     } catch (e) {
                         console.log(`❌ Failed reference space ${spaceType}:`, e.message);
+                        document.getElementById('info').innerHTML = `<h3>🔄 Starting AR...</h3><p>❌ ${spaceType} failed: ${e.message}</p>`;
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 sec to see error
                     }
                 }
                 
                 if (!referenceSpace) {
-                    throw new Error('No supported reference space found');
+                    throw new Error('No supported reference space found: viewer, local, local-floor all failed');
                 }
                 
                 // Set up controller for touch interaction
