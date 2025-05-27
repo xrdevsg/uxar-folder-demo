@@ -336,10 +336,17 @@
         
         // AR Session management
         document.getElementById('startAR').addEventListener('click', () => {
+            console.log('Enter AR button clicked');
+            document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Requesting camera permission...</p>';
+            
             if (navigator.xr) {
+                console.log('WebXR available, requesting AR session...');
+                
+                // Try with minimal features first
                 navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test']
+                    requiredFeatures: ['local']
                 }).then((session) => {
+                    console.log('AR session started successfully!');
                     renderer.xr.setSession(session);
                     document.getElementById('startAR').style.display = 'none';
                     document.getElementById('info').innerHTML = `
@@ -349,18 +356,19 @@
                     `;
                     isARActive = true;
                 }).catch((error) => {
-                    console.log('AR not supported or failed:', error);
+                    console.error('AR session failed:', error);
                     document.getElementById('info').innerHTML = `
-                        <h3>⚠️ AR Not Available</h3>
-                        <p>WebXR not supported on this device. Try Chrome on Android with ARCore support.</p>
-                        <p><strong>For demo:</strong> This would work on compatible AR devices!</p>
+                        <h3>⚠️ AR Session Failed</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Your device supports WebXR but AR session failed.</p>
+                        <button onclick="location.reload()">Try Again</button>
                     `;
                 });
             } else {
+                console.error('WebXR not available');
                 document.getElementById('info').innerHTML = `
                     <h3>⚠️ WebXR Not Supported</h3>
-                    <p>This browser doesn't support WebXR. Try Chrome on Android!</p>
-                    <p><strong>Demo concept:</strong> Drag folder items into real world as 3D objects.</p>
+                    <p>This browser doesn't support WebXR.</p>
                 `;
             }
         });
