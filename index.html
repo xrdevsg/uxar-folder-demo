@@ -357,14 +357,35 @@
                     return;
                 }
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 3: Requesting camera permission...</p>';
-                console.log('Requesting AR session...');
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 3: Requesting AR session...</p>';
+                console.log('Requesting AR session without features...');
                 
-                // Try without any features first
+                // Try without any required features
                 const session = await navigator.xr.requestSession('immersive-ar');
                 console.log('AR session created successfully!');
                 
-                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 4: Initializing renderer...</p>';
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 4: Testing reference spaces...</p>';
+                
+                // Try different reference space types
+                let referenceSpace;
+                const spaceTypes = ['viewer', 'local', 'local-floor', 'bounded-floor', 'unbounded'];
+                
+                for (const spaceType of spaceTypes) {
+                    try {
+                        console.log(`Trying reference space: ${spaceType}`);
+                        referenceSpace = await session.requestReferenceSpace(spaceType);
+                        console.log(`Success with reference space: ${spaceType}`);
+                        break;
+                    } catch (e) {
+                        console.log(`Failed reference space ${spaceType}:`, e.message);
+                    }
+                }
+                
+                if (!referenceSpace) {
+                    throw new Error('No supported reference space found');
+                }
+                
+                document.getElementById('info').innerHTML = '<h3>🔄 Starting AR...</h3><p>Step 5: Setting up renderer...</p>';
                 
                 await renderer.xr.setSession(session);
                 console.log('Renderer session set successfully!');
@@ -373,17 +394,18 @@
                 document.getElementById('info').innerHTML = `
                     <h3>🎉 AR Active!</h3>
                     <p>Point device at ground → Touch folder items!</p>
+                    <p>Reference space: ${referenceSpace.constructor.name}</p>
                     <p>Objects: ${placedObjects.length}</p>
                 `;
                 isARActive = true;
                 
             } catch (error) {
-                console.error('AR failed at step:', error);
+                console.error('AR failed:', error);
                 document.getElementById('info').innerHTML = `
                     <h3>❌ AR Failed</h3>
                     <p><strong>Error:</strong> ${error.name}</p>
                     <p><strong>Message:</strong> ${error.message}</p>
-                    <p><strong>Step:</strong> Check browser console for details</p>
+                    <p>Check console for reference space details</p>
                     <button onclick="location.reload()">Try Again</button>
                 `;
             }
